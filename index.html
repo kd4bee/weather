@@ -80,7 +80,7 @@
                     <button onclick="openSettingsModal()" class="w-7 h-7 rounded-lg bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-sky-300 border border-slate-700 transition cursor-pointer">
                         <i class="fa-solid fa-gear text-xs"></i>
                     </button>
-                    <!-- Increased text size for UTC time -->
+                    <!-- UTC Time Display -->
                     <span class="text-xs font-mono font-semibold text-sky-300 bg-slate-800/80 px-2.5 py-1 rounded border border-sky-500/20" id="utcTimeDisplay">--:--:-- UTC</span>
                 </div>
             </div>
@@ -219,11 +219,11 @@
             </div>
         </div>
 
-        <!-- 7-DAY FORECAST PANE -->
+        <!-- 7-DAY FORECAST PANE (DYNAMIC FOR CURRENT STATION) -->
         <div class="glass-panel rounded-2xl p-3 flex flex-col gap-2">
             <div class="flex items-center justify-between border-b border-slate-700/60 pb-1.5">
                 <div class="text-[10px] uppercase font-bold text-slate-300 tracking-wider flex items-center gap-1">
-                    <i class="fa-solid fa-calendar-week text-sky-400"></i> Interlachen 7-Day Forecast
+                    <i class="fa-solid fa-calendar-week text-sky-400"></i> <span id="forecastHeaderLocation">7-Day Forecast</span>
                 </div>
                 <span class="text-[9px] text-sky-400 flex items-center gap-0.5"><i class="fa-solid fa-hand-pointer"></i> Tap day</span>
             </div>
@@ -332,16 +332,20 @@
                     <input type="text" id="settingStationName" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">City, State / Location</label>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">City, State / Location (Used if keys are blank)</label>
                     <input type="text" id="settingStationLocation" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="e.g. Interlachen, FL">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">Ambient API Key</label>
-                    <input type="text" id="settingApiKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Device MAC Address (Optional)</label>
+                    <input type="text" id="settingMacAddress" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">Application Key</label>
-                    <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Ambient API Key (Optional)</label>
+                    <input type="text" id="settingApiKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Application Key (Optional)</label>
+                    <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
                 </div>
                 <div class="flex justify-end pt-1">
                     <button type="button" onclick="deleteCurrentStation()" class="text-[10px] text-red-400 hover:text-red-300 transition cursor-pointer">
@@ -405,13 +409,34 @@
     </div>
 
     <script>
+        // =========================================================================
+        // PERMANENTLY BAKED-IN STATIONS CONFIGURATION
+        // - KD4BEE WX, Cherry Mountain, and Hollister have their Ambient keys & MACs.
+        // - Any new station added here with blank apiKey/appKey will 
+        //   automatically fetch live weather based on its Location string!
+        // =========================================================================
         let config = {
             stations: [
                 {
                     name: "KD4BEE WX",
                     location: "Interlachen, FL",
+                    macAddress: "", 
                     apiKey: "546a87af80fb4cc19b43ed1d5d4bbaee7fa6f175baf44f3082d450f706ffbf89",
                     appKey: "7f76b38b64504544a02cdbf031215121118ab04e557547b7ba2a0c0f2ff6a688"
+                },
+                {
+                    name: "Cherry Mountain",
+                    location: "Cherry Mountain, NC",
+                    macAddress: "E0:98:06:A3:3D:1D",
+                    apiKey: "e628b3ba1253449591bc9bf5ebf32bee35017ec8e9b74666b26e50763fd21728",
+                    appKey: "79231481a76f48b1a2f8e642d1e51ab4961283ee51564dbab14b945fdf3e6f37"
+                },
+                {
+                    name: "Hollister",
+                    location: "Hollister, FL",
+                    macAddress: "48:3F:DA:89:B8:B2",
+                    apiKey: "e628b3ba1253449591bc9bf5ebf32bee35017ec8e9b74666b26e50763fd21728",
+                    appKey: "79231481a76f48b1a2f8e642d1e51ab4961283ee51564dbab14b945fdf3e6f37"
                 }
             ],
             activeStationIndex: 0,
@@ -422,8 +447,6 @@
             rainUnit: "in",
             refreshInterval: 15000
         };
-
-        const INTERLACHEN_NWS_URL = "https://api.weather.gov/gridpoints/JAX/51,43/forecast";
 
         let activeChart = null;
         let recentHistoryData = [];
@@ -477,21 +500,8 @@
             if (saved) {
                 try {
                     const parsed = JSON.parse(saved);
-                    if (parsed.stations && Array.isArray(parsed.stations)) {
+                    if (parsed.stations && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
                         config = { ...config, ...parsed };
-                    } else if (parsed.apiKey) {
-                        config.stations = [{
-                            name: "KD4BEE WX",
-                            location: "Interlachen, FL",
-                            apiKey: parsed.apiKey,
-                            appKey: parsed.appKey || config.stations[0].appKey
-                        }];
-                        config.isLiveMode = parsed.isLiveMode ?? config.isLiveMode;
-                        config.tempUnit = parsed.tempUnit ?? config.tempUnit;
-                        config.pressUnit = parsed.pressUnit ?? config.pressUnit;
-                        config.windUnit = parsed.windUnit ?? config.windUnit;
-                        config.rainUnit = parsed.rainUnit ?? config.rainUnit;
-                        config.refreshInterval = parsed.refreshInterval ?? config.refreshInterval;
                     }
                 } catch(e){}
             }
@@ -527,14 +537,14 @@
             const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
             safeSetText('stationTitleDisplay', currentStation.name);
             safeSetText('stationLocationDisplay', currentStation.location || "Interlachen, FL");
+            safeSetText('forecastHeaderLocation', `${currentStation.location || 'Station'} 7-Day Forecast`);
 
             try {
                 if (config.isLiveMode) {
-                    await fetchAmbientData();
-                    await fetchInterlachenForecast();
+                    await fetchStationDataRouter();
                     const indicator = document.getElementById('connectionIndicator');
                     if (indicator) indicator.className = "inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
-                    safeSetText('modeLabel', "LIVE");
+                    safeSetText('modeLabel', currentStation.apiKey ? "LIVE (API)" : "LIVE (LOCATION)");
                 } else {
                     useDemoData();
                     const indicator = document.getElementById('connectionIndicator');
@@ -542,7 +552,7 @@
                     safeSetText('modeLabel', "DEMO");
                 }
             } catch (err) {
-                console.warn("API request failed, fallback to demo mode:", err);
+                console.warn("Data request failed, fallback to demo mode:", err);
                 useDemoData();
                 safeSetText('modeLabel', "API ERR (DEMO)");
                 const indicator = document.getElementById('connectionIndicator');
@@ -552,8 +562,16 @@
             }
         }
 
-        async function fetchAmbientData() {
+        async function fetchStationDataRouter() {
             const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            
+            // If API key is blank, route to Open-Meteo Location Live Weather Engine
+            if (!currentStation.apiKey || currentStation.apiKey.trim() === "") {
+                await fetchLocationLiveWeather(currentStation.location || currentStation.name);
+                return;
+            }
+
+            // Otherwise, fetch from Ambient Weather API
             const targetUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}&limit=72`;
             let data = null;
 
@@ -570,30 +588,181 @@
                 data = JSON.parse(wrapper.contents);
             }
 
-            if (data && Array.isArray(data) && data.length > 0 && data[0].lastData) {
-                rawLastStationData = data[0].lastData;
-                if (Array.isArray(data[0].history) && data[0].history.length > 0) {
-                    recentHistoryData = data[0].history.slice(0, 72).reverse();
-                } else {
-                    generateSyntheticHistory(rawLastStationData);
+            if (data && Array.isArray(data) && data.length > 0) {
+                let matchedDevice = null;
+                if (currentStation.macAddress) {
+                    const cleanTargetMac = currentStation.macAddress.trim().toLowerCase();
+                    matchedDevice = data.find(dev => {
+                        const devMac = (dev.mac || dev.macAddress || "").trim().toLowerCase();
+                        return devMac === cleanTargetMac;
+                    });
                 }
-                updateUI(rawLastStationData);
+                if (!matchedDevice) matchedDevice = data[0];
+
+                if (matchedDevice && matchedDevice.lastData) {
+                    rawLastStationData = matchedDevice.lastData;
+                    if (matchedDevice.info && matchedDevice.info.coords) {
+                        rawLastStationData._coords = matchedDevice.info.coords;
+                    } else if (matchedDevice.lastData.coords) {
+                        rawLastStationData._coords = matchedDevice.lastData.coords;
+                    }
+                    if (Array.isArray(matchedDevice.history) && matchedDevice.history.length > 0) {
+                        recentHistoryData = matchedDevice.history.slice(0, 72).reverse();
+                    } else {
+                        generateSyntheticHistory(rawLastStationData);
+                    }
+                    updateUI(rawLastStationData);
+                    await fetchDynamicNWSForecast();
+                } else {
+                    throw new Error("No valid station telemetry found");
+                }
             } else {
                 throw new Error("No station data returned");
             }
         }
 
-        async function fetchInterlachenForecast() {
-            try {
-                const response = await fetch(INTERLACHEN_NWS_URL);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data && data.properties && data.properties.periods) {
-                        parseNWSForecastPeriods(data.properties.periods);
-                        return;
-                    }
+        async function fetchLocationLiveWeather(locQuery) {
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locQuery)}`);
+            if (!geoRes.ok) throw new Error("Geocoding failed");
+            const geoData = await geoRes.json();
+            if (!geoData || geoData.length === 0) throw new Error("Location not found");
+
+            const lat = parseFloat(geoData[0].lat);
+            const lon = parseFloat(geoData[0].lon);
+
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,surface_pressure,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`;
+            
+            const wRes = await fetch(weatherUrl);
+            if (!wRes.ok) throw new Error("Weather fetch failed");
+            const wData = await wRes.json();
+
+            if (wData && wData.current) {
+                const cur = wData.current;
+                const pressInHg = (cur.surface_pressure ? cur.surface_pressure / 33.8639 : 29.92);
+
+                rawLastStationData = {
+                    temp: cur.temperature_2m,
+                    tempf: cur.temperature_2m,
+                    tempmax: wData.daily?.temperature_2m_max?.[0] || cur.temperature_2m + 4,
+                    tempmin: wData.daily?.temperature_2m_min?.[0] || cur.temperature_2m - 4,
+                    feelsLike: cur.apparent_temperature,
+                    tempinf: 72.0,
+                    humidityin: 45,
+                    windspeedmph: cur.wind_speed_10m,
+                    windgustmph: cur.wind_speed_10m * 1.3,
+                    maxdailygust: cur.wind_speed_10m * 1.5,
+                    winddir: cur.wind_direction_10m || 0,
+                    humidity: cur.relative_humidity_2m,
+                    dewPoint: cur.temperature_2m - ((100 - cur.relative_humidity_2m) / 5),
+                    baromrelin: pressInHg,
+                    hourlyrainin: cur.precipitation || 0.0,
+                    dailyrainin: (cur.precipitation || 0.0) * 2,
+                    solarradiation: 480.0,
+                    uv: 5,
+                    _coords: { lat, lon }
+                };
+
+                generateSyntheticHistory(rawLastStationData);
+                updateUI(rawLastStationData);
+
+                if (wData.daily && wData.daily.time) {
+                    parseOpenMeteoForecast(wData.daily);
+                } else {
+                    generateInterlachenFallbackForecast(cur.temperature_2m);
                 }
-            } catch(e) {}
+            }
+        }
+
+        function parseOpenMeteoForecast(daily) {
+            forecastDaysData = [];
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            
+            for (let i = 0; i < daily.time.length && forecastDaysData.length < 7; i++) {
+                const dateObj = new Date(daily.time[i] + 'T00:00:00');
+                const dayOfWeek = days[dateObj.getDay()];
+                const high = daily.temperature_2m_max[i];
+                const low = daily.temperature_2m_min[i];
+                const code = daily.weather_code[i];
+                const precipProb = daily.precipitation_probability_max?.[i] || 10;
+
+                forecastDaysData.push({
+                    dayName: i === 0 ? 'Today' : dayOfWeek,
+                    fullDayName: i === 0 ? 'Today Forecast' : `${dayOfWeek} Forecast`,
+                    high: high,
+                    low: low,
+                    shortForecast: getWeatherCodeDescription(code),
+                    detailedForecast: `Forecast for ${dateObj.toLocaleDateString('en-US', {weekday: 'long', month: 'short', day: 'numeric'})}: High near ${Math.round(high)}°F, Low around ${Math.round(low)}°F. Precipitation chance: ${precipProb}%.`,
+                    icon: getWeatherCodeIcon(code),
+                    windSpeed: '5 to 10 mph',
+                    windDirection: 'Var',
+                    precipChance: precipProb
+                });
+            }
+            renderForecastGrid();
+        }
+
+        function getWeatherCodeDescription(code) {
+            if (code === 0) return 'Sunny & Clear';
+            if (code >= 1 && code <= 3) return 'Partly Cloudy';
+            if (code >= 45 && code <= 48) return 'Foggy';
+            if (code >= 51 && code <= 67) return 'Rain Showers';
+            if (code >= 71 && code <= 77) return 'Snow';
+            if (code >= 80 && code <= 82) return 'Rain Showers';
+            if (code >= 95) return 'Thunderstorms';
+            return 'Fair & Mild';
+        }
+
+        function getWeatherCodeIcon(code) {
+            if (code === 0) return 'fa-sun';
+            if (code >= 1 && code <= 3) return 'fa-cloud-sun';
+            if (code >= 51 && code <= 67) return 'fa-cloud-showers-heavy';
+            if (code >= 95) return 'fa-cloud-bolt';
+            return 'fa-cloud-sun';
+        }
+
+        async function fetchDynamicNWSForecast() {
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            let lat = null;
+            let lon = null;
+
+            if (rawLastStationData && rawLastStationData._coords) {
+                lat = rawLastStationData._coords.lat || rawLastStationData._coords.latitude;
+                lon = rawLastStationData._coords.lon || rawLastStationData._coords.longitude;
+            }
+
+            if (!lat || !lon) {
+                const locQuery = currentStation.location || "Interlachen, FL";
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locQuery)}`);
+                    if (geoRes.ok) {
+                        const geoData = await geoRes.json();
+                        if (geoData && geoData.length > 0) {
+                            lat = parseFloat(geoData[0].lat);
+                            lon = parseFloat(geoData[0].lon);
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (lat && lon) {
+                try {
+                    const pointRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`);
+                    if (pointRes.ok) {
+                        const pointData = await pointRes.json();
+                        if (pointData && pointData.properties && pointData.properties.forecast) {
+                            const forecastRes = await fetch(pointData.properties.forecast);
+                            if (forecastRes.ok) {
+                                const forecastData = await forecastRes.json();
+                                if (forecastData && forecastData.properties && forecastData.properties.periods) {
+                                    parseNWSForecastPeriods(forecastData.properties.periods);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+
             generateInterlachenFallbackForecast(getOutdoorTemp(rawLastStationData) ?? 78);
         }
 
@@ -685,7 +854,7 @@
             if (modal) modal.classList.remove('hidden');
 
             safeSetText('modalTitle', day.fullDayName);
-            safeSetText('modalSubTitle', "NWS Forecast");
+            safeSetText('modalSubTitle', "Forecast Detail");
 
             const highConv = formatTemp(day.high);
             const lowConv = formatTemp(day.low);
@@ -1064,8 +1233,8 @@
 
             if (tempUnitSel) tempUnitSel.value = config.tempUnit;
             if (pressUnitSel) pressUnitSel.value = config.pressUnit;
-            if (windUnitSel) windUnitSel.value = config.windUnit;
-            if (rainUnitSel) config.rainUnit = rainUnitSel.value;
+            if (windUnitSel) config.windUnit = config.windUnit;
+            if (rainUnitSel) config.rainUnit = config.rainUnit;
             if (refreshIntSel) refreshIntSel.value = config.refreshInterval;
 
             updateModeBtns(config.isLiveMode);
@@ -1090,13 +1259,15 @@
             const st = config.stations[config.activeStationIndex] || config.stations[0];
             const nameInput = document.getElementById('settingStationName');
             const locationInput = document.getElementById('settingStationLocation');
+            const macInput = document.getElementById('settingMacAddress');
             const apiKeyInput = document.getElementById('settingApiKey');
             const appKeyInput = document.getElementById('settingAppKey');
 
             if (nameInput) nameInput.value = st.name;
             if (locationInput) locationInput.value = st.location || "";
-            if (apiKeyInput) apiKeyInput.value = st.apiKey;
-            if (appKeyInput) appKeyInput.value = st.appKey;
+            if (macInput) macInput.value = st.macAddress || "";
+            if (apiKeyInput) apiKeyInput.value = st.apiKey || "";
+            if (appKeyInput) appKeyInput.value = st.appKey || "";
         }
 
         function onStationDropdownChange() {
@@ -1111,12 +1282,14 @@
         function saveFormToCurrentStationIndex() {
             const nameInput = document.getElementById('settingStationName');
             const locationInput = document.getElementById('settingStationLocation');
+            const macInput = document.getElementById('settingMacAddress');
             const apiKeyInput = document.getElementById('settingApiKey');
             const appKeyInput = document.getElementById('settingAppKey');
 
             if (config.stations[config.activeStationIndex]) {
                 if (nameInput) config.stations[config.activeStationIndex].name = nameInput.value.trim() || "Station " + (config.activeStationIndex + 1);
                 if (locationInput) config.stations[config.activeStationIndex].location = locationInput.value.trim();
+                if (macInput) config.stations[config.activeStationIndex].macAddress = macInput.value.trim();
                 if (apiKeyInput) config.stations[config.activeStationIndex].apiKey = apiKeyInput.value.trim();
                 if (appKeyInput) config.stations[config.activeStationIndex].appKey = appKeyInput.value.trim();
             }
@@ -1127,6 +1300,7 @@
             config.stations.push({
                 name: "Station " + (config.stations.length + 1),
                 location: "City, State",
+                macAddress: "",
                 apiKey: "",
                 appKey: ""
             });
