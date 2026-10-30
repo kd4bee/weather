@@ -411,9 +411,6 @@
     <script>
         // =========================================================================
         // PERMANENTLY BAKED-IN STATIONS CONFIGURATION
-        // - KD4BEE WX, Cherry Mountain, and Hollister have their Ambient keys & MACs.
-        // - Any new station added here with blank apiKey/appKey will 
-        //   automatically fetch live weather based on its Location string!
         // =========================================================================
         let config = {
             stations: [
@@ -473,13 +470,7 @@
 
         function getDailyRain(d) {
             let val = d?.dailyrainin ?? 0;
-            if (val === 0 && recentHistoryData && recentHistoryData.length > 0) {
-                const maxHist = Math.max(...recentHistoryData.map(item => item.dailyrainin ?? 0));
-                if (maxHist > 0) val = maxHist;
-                else {
-                    val = recentHistoryData.reduce((acc, item) => acc + (item.hourlyrainin ?? 0), 0);
-                }
-            }
+            // Do not pull historic rain into today's total if explicit dailyrainin is present
             return val;
         }
 
@@ -565,13 +556,11 @@
         async function fetchStationDataRouter() {
             const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
             
-            // If API key is blank, route to Open-Meteo Location Live Weather Engine
             if (!currentStation.apiKey || currentStation.apiKey.trim() === "") {
                 await fetchLocationLiveWeather(currentStation.location || currentStation.name);
                 return;
             }
 
-            // Otherwise, fetch from Ambient Weather API
             const targetUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}&limit=72`;
             let data = null;
 
@@ -590,14 +579,34 @@
 
             if (data && Array.isArray(data) && data.length > 0) {
                 let matchedDevice = null;
-                if (currentStation.macAddress) {
-                    const cleanTargetMac = currentStation.macAddress.trim().toLowerCase();
+                
+                // 1. Strict MAC matching
+                if (currentStation.macAddress && currentStation.macAddress.trim() !== "") {
+                    const cleanTargetMac = currentStation.macAddress.replace(/[:\-]/g, '').trim().toLowerCase();
                     matchedDevice = data.find(dev => {
-                        const devMac = (dev.mac || dev.macAddress || "").trim().toLowerCase();
+                        const rawMac = dev.mac || dev.macAddress || dev.info?.mac || "";
+                        const devMac = rawMac.replace(/[:\-]/g, '').trim().toLowerCase();
                         return devMac === cleanTargetMac;
                     });
                 }
-                if (!matchedDevice) matchedDevice = data[0];
+                
+                // 2. Fallback match by station name if MAC wasn't found
+                if (!matchedDevice && currentStation.name) {
+                    matchedDevice = data.find(dev => {
+                        const devName = (dev.info?.name || dev.name || "").trim().toLowerCase();
+                        return devName.includes(currentStation.name.toLowerCase());
+                    });
+                }
+
+                // 3. STRICT GUARD: If a MAC was specified but still not found, DO NOT grab data[0]! 
+                // Only default to data[0] if no MAC address was configured at all (like KD4BEE WX).
+                if (!matchedDevice) {
+                    if (!currentStation.macAddress || currentStation.macAddress.trim() === "") {
+                        matchedDevice = data[0];
+                    } else {
+                        throw new Error(`Device with MAC ${currentStation.macAddress} not found in account response.`);
+                    }
+                }
 
                 if (matchedDevice && matchedDevice.lastData) {
                     rawLastStationData = matchedDevice.lastData;
@@ -656,7 +665,7 @@
                     dewPoint: cur.temperature_2m - ((100 - cur.relative_humidity_2m) / 5),
                     baromrelin: pressInHg,
                     hourlyrainin: cur.precipitation || 0.0,
-                    dailyrainin: (cur.precipitation || 0.0) * 2,
+                    dailyrainin: 0.0,
                     solarradiation: 480.0,
                     uv: 5,
                     _coords: { lat, lon }
@@ -900,8 +909,8 @@
                 humidity: 62,
                 dewPoint: 64.0,
                 baromrelin: 29.92,
-                hourlyrainin: 0.05,
-                dailyrainin: 1.25,
+                hourlyrainin: 0.0,
+                dailyrainin: 0.0,
                 solarradiation: 542.8,
                 uv: 6
             };
@@ -933,8 +942,8 @@
                     windgustmph: Math.max(0, Number(((base.windgustmph ?? 10) + Math.cos(hoursAgo) * 4).toFixed(1))),
                     humidity: Math.min(100, Math.max(20, Math.round((base.humidity ?? 60) - tempOffset * 2))),
                     baromrelin: Number(((base.baromrelin ?? 29.92) + Math.sin(hoursAgo/4) * 0.1).toFixed(2)),
-                    dailyrainin: base.dailyrainin ?? 1.25,
-                    hourlyrainin: (Math.sin(hoursAgo) > 0.5) ? 0.05 : 0.00,
+                    dailyrainin: 0.0,
+                    hourlyrainin: 0.0,
                     solarradiation: Math.max(0, Number(((base.solarradiation ?? 500) + Math.sin(hoursAgo/2) * 300).toFixed(1))),
                     uv: Math.max(0, Math.round((base.uv ?? 5) + Math.sin(hoursAgo/2) * 3))
                 });
