@@ -469,9 +469,8 @@
         }
 
         function getDailyRain(d) {
-            let val = d?.dailyrainin ?? 0;
-            // Do not pull historic rain into today's total if explicit dailyrainin is present
-            return val;
+            if (!d) return 0;
+            return Number(d.dailyrainin ?? d.eventrainin ?? d.rainin ?? 0);
         }
 
         window.onload = function() {
@@ -561,16 +560,17 @@
                 return;
             }
 
-            const targetUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}&limit=72`;
+            // 1. Fetch current devices list to identify target station metadata and MAC address
+            const devicesUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}`;
             let data = null;
 
             try {
-                const response = await fetch(targetUrl);
+                const response = await fetch(devicesUrl);
                 if (response.ok) data = await response.json();
             } catch (e) {}
 
             if (!data) {
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(devicesUrl)}`;
                 const response = await fetch(proxyUrl);
                 if (!response.ok) throw new Error("HTTP error " + response.status);
                 const wrapper = await response.json();
@@ -580,7 +580,7 @@
             if (data && Array.isArray(data) && data.length > 0) {
                 let matchedDevice = null;
                 
-                // 1. Strict MAC matching
+                // Strict MAC matching
                 if (currentStation.macAddress && currentStation.macAddress.trim() !== "") {
                     const cleanTargetMac = currentStation.macAddress.replace(/[:\-]/g, '').trim().toLowerCase();
                     matchedDevice = data.find(dev => {
@@ -590,7 +590,7 @@
                     });
                 }
                 
-                // 2. Fallback match by station name if MAC wasn't found
+                // Fallback match by station name
                 if (!matchedDevice && currentStation.name) {
                     matchedDevice = data.find(dev => {
                         const devName = (dev.info?.name || dev.name || "").trim().toLowerCase();
@@ -598,8 +598,6 @@
                     });
                 }
 
-                // 3. STRICT GUARD: If a MAC was specified but still not found, DO NOT grab data[0]! 
-                // Only default to data[0] if no MAC address was configured at all (like KD4BEE WX).
                 if (!matchedDevice) {
                     if (!currentStation.macAddress || currentStation.macAddress.trim() === "") {
                         matchedDevice = data[0];
@@ -615,11 +613,44 @@
                     } else if (matchedDevice.lastData.coords) {
                         rawLastStationData._coords = matchedDevice.lastData.coords;
                     }
-                    if (Array.isArray(matchedDevice.history) && matchedDevice.history.length > 0) {
-                        recentHistoryData = matchedDevice.history.slice(0, 72).reverse();
+
+                    // Extract resolved MAC address
+                    const targetMac = matchedDevice.macAddress || matchedDevice.mac || matchedDevice.info?.mac || currentStation.macAddress;
+
+                    // 2. Query specific device historical endpoint using device MAC address
+                    if (targetMac) {
+                        try {
+                            const cleanMac = encodeURIComponent(targetMac);
+                            const histUrl = `https://rt.ambientweather.net/v1/devices/${cleanMac}?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}&limit=72`;
+                            
+                            let histData = null;
+                            try {
+                                const hRes = await fetch(histUrl);
+                                if (hRes.ok) histData = await hRes.json();
+                            } catch (he) {}
+
+                            if (!histData) {
+                                const pUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(histUrl)}`;
+                                const pRes = await fetch(pUrl);
+                                if (pRes.ok) {
+                                    const pWrap = await pRes.json();
+                                    histData = JSON.parse(pWrap.contents);
+                                }
+                            }
+
+                            if (Array.isArray(histData) && histData.length > 0) {
+                                processRawHistory(histData);
+                            } else {
+                                generateSyntheticHistory(rawLastStationData);
+                            }
+                        } catch (hErr) {
+                            console.warn("Could not fetch device history from MAC endpoint, using fallbacks:", hErr);
+                            generateSyntheticHistory(rawLastStationData);
+                        }
                     } else {
                         generateSyntheticHistory(rawLastStationData);
                     }
+
                     updateUI(rawLastStationData);
                     await fetchDynamicNWSForecast();
                 } else {
@@ -628,6 +659,16 @@
             } else {
                 throw new Error("No station data returned");
             }
+        }
+
+        function processRawHistory(rawArr) {
+            // Sort history in ascending chronological order (oldest -> newest)
+            let sorted = rawArr.slice().sort((a, b) => {
+                const tA = new Date(a.date || a.dateutc || 0).getTime();
+                const tB = new Date(b.date || b.dateutc || 0).getTime();
+                return tA - tB;
+            });
+            recentHistoryData = sorted.slice(-72);
         }
 
         async function fetchLocationLiveWeather(locQuery) {
@@ -1012,7 +1053,7 @@
             safeSetText('pressureDisplay', press.val);
             safeSetText('pressureUnitLabel', press.unit);
 
-            const rainHr = formatRain(d.hourlyrainin);
+            const rainHr = formatRain(d.hourlyrainin ?? d.rainin ?? d.eventrainin);
             const rainDayVal = getDailyRain(d);
             const rainDay = formatRain(rainDayVal);
 
@@ -1112,11 +1153,12 @@
 
             const slicedHistory = recentHistoryData.slice(-72);
 
-            slicedHistory.forEach(item => {
-                const time = item.date ? new Date(item.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+            slicedHistory.forEach((item, idx) => {
+                const rawDate = item.date || item.dateutc;
+                const time = rawDate ? new Date(rawDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : `--:--`;
                 labels.push(time);
 
-                let val;
+                let val = 0;
                 if (type === 'outdoor_temp') val = Number(formatTemp(getOutdoorTemp(item)).val);
                 else if (type === 'outdoor_humidity') val = item.humidity !== undefined ? Number(item.humidity) : 0;
                 else if (type === 'indoor_temp') val = Number(formatTemp(item.tempinf).val);
@@ -1124,7 +1166,18 @@
                 else if (type === 'wind') val = Number(formatWind(item.windgustmph ?? item.windspeedmph).val);
                 else if (type === 'solar') val = item.solarradiation !== undefined ? item.solarradiation : 0;
                 else if (type === 'pressure') val = Number(formatPressure(item.baromrelin).val);
-                else if (type === 'rain') val = Number(formatRain(item.hourlyrainin ?? item.dailyrainin).val);
+                else if (type === 'rain') {
+                    // Extract rate or delta from dailyrainin progression
+                    let directRate = item.hourlyrainin ?? item.rainin ?? item.eventrainin;
+                    if (directRate !== undefined && directRate !== null && Number(directRate) > 0) {
+                        val = Number(formatRain(directRate).val);
+                    } else if (idx > 0 && item.dailyrainin !== undefined && slicedHistory[idx - 1].dailyrainin !== undefined) {
+                        const delta = Math.max(0, Number(item.dailyrainin) - Number(slicedHistory[idx - 1].dailyrainin));
+                        val = Number(formatRain(delta).val);
+                    } else if (item.dailyrainin !== undefined) {
+                        val = Number(formatRain(item.dailyrainin).val);
+                    }
+                }
 
                 values.push(isNaN(val) ? 0 : val);
             });
