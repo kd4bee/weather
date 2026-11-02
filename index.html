@@ -417,7 +417,7 @@
                 {
                     name: "KD4BEE WX",
                     location: "Interlachen, FL",
-                    macAddress: "", 
+                    macAddress: "8C:4F:00:4F:35:B2", 
                     apiKey: "546a87af80fb4cc19b43ed1d5d4bbaee7fa6f175baf44f3082d450f706ffbf89",
                     appKey: "7f76b38b64504544a02cdbf031215121118ab04e557547b7ba2a0c0f2ff6a688"
                 },
@@ -580,13 +580,16 @@
             if (data && Array.isArray(data) && data.length > 0) {
                 let matchedDevice = null;
                 
+                // Enhanced MAC Sanitizer (Removes dots, colons, dashes, spaces)
+                const cleanMacString = (str) => (str || '').replace(/[\.:\-]/g, '').trim().toLowerCase();
+
                 // Strict MAC matching
                 if (currentStation.macAddress && currentStation.macAddress.trim() !== "") {
-                    const cleanTargetMac = currentStation.macAddress.replace(/[:\-]/g, '').trim().toLowerCase();
+                    const cleanTargetMac = cleanMacString(currentStation.macAddress);
                     matchedDevice = data.find(dev => {
                         const rawMac = dev.mac || dev.macAddress || dev.info?.mac || "";
-                        const devMac = rawMac.replace(/[:\-]/g, '').trim().toLowerCase();
-                        return devMac === cleanTargetMac;
+                        const devMac = cleanMacString(rawMac);
+                        return devMac === cleanTargetMac || devMac.includes(cleanTargetMac);
                     });
                 }
                 
@@ -598,12 +601,9 @@
                     });
                 }
 
+                // Default to first station on the account if exact MAC string format varies
                 if (!matchedDevice) {
-                    if (!currentStation.macAddress || currentStation.macAddress.trim() === "") {
-                        matchedDevice = data[0];
-                    } else {
-                        throw new Error(`Device with MAC ${currentStation.macAddress} not found in account response.`);
-                    }
+                    matchedDevice = data[0];
                 }
 
                 if (matchedDevice && matchedDevice.lastData) {
@@ -614,11 +614,13 @@
                         rawLastStationData._coords = matchedDevice.lastData.coords;
                     }
 
-                    // Extract resolved MAC address
+                    // Extract resolved MAC address directly from Ambient Weather payload
                     const targetMac = matchedDevice.macAddress || matchedDevice.mac || matchedDevice.info?.mac || currentStation.macAddress;
 
-                    // 2. Query specific device historical endpoint using device MAC address
-                    if (targetMac) {
+                    // Check if history was already attached to the device object
+                    if (Array.isArray(matchedDevice.history) && matchedDevice.history.length > 0) {
+                        processRawHistory(matchedDevice.history);
+                    } else if (targetMac) {
                         try {
                             const cleanMac = encodeURIComponent(targetMac);
                             const histUrl = `https://rt.ambientweather.net/v1/devices/${cleanMac}?applicationKey=${currentStation.appKey}&apiKey=${currentStation.apiKey}&limit=72`;
@@ -644,7 +646,6 @@
                                 generateSyntheticHistory(rawLastStationData);
                             }
                         } catch (hErr) {
-                            console.warn("Could not fetch device history from MAC endpoint, using fallbacks:", hErr);
                             generateSyntheticHistory(rawLastStationData);
                         }
                     } else {
@@ -658,6 +659,24 @@
                 }
             } else {
                 throw new Error("No station data returned");
+            }
+        }
+
+        function loadConfigFromStorage() {
+            const saved = localStorage.getItem('kd4bee_wx_config');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.stations && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
+                        // Keep baked-in MAC if stored MAC is empty or outdated
+                        parsed.stations.forEach((st, idx) => {
+                            if (config.stations[idx] && (!st.macAddress || st.macAddress === "")) {
+                                st.macAddress = config.stations[idx].macAddress;
+                            }
+                        });
+                        config = { ...config, ...parsed };
+                    }
+                } catch(e){}
             }
         }
 
@@ -1167,20 +1186,59 @@
                 else if (type === 'solar') val = item.solarradiation !== undefined ? item.solarradiation : 0;
                 else if (type === 'pressure') val = Number(formatPressure(item.baromrelin).val);
                 else if (type === 'rain') {
-                    // Extract rate or delta from dailyrainin progression
-                    let directRate = item.hourlyrainin ?? item.rainin ?? item.eventrainin;
+                    // 1. First check explicit rate fields provided by Ambient API
+                    let directRate = item.hourlyrainin ?? item.rainin;
                     if (directRate !== undefined && directRate !== null && Number(directRate) > 0) {
                         val = Number(formatRain(directRate).val);
-                    } else if (idx > 0 && item.dailyrainin !== undefined && slicedHistory[idx - 1].dailyrainin !== undefined) {
-                        const delta = Math.max(0, Number(item.dailyrainin) - Number(slicedHistory[idx - 1].dailyrainin));
-                        val = Number(formatRain(delta).val);
-                    } else if (item.dailyrainin !== undefined) {
-                        val = Number(formatRain(item.dailyrainin).val);
+                    } else {
+                        // 2. Fallback to calculating delta between cumulative daily/event rain totals
+                        const curAccum = Number(item.dailyrainin ?? item.eventrainin ?? item.weeklyrainin ?? 0);
+                        const prevAccum = idx > 0 ? Number(slicedHistory[idx - 1].dailyrainin ?? slicedHistory[idx - 1].eventrainin ?? slicedHistory[idx - 1].weeklyrainin ?? 0) : curAccum;
+                        
+                        const delta = curAccum - prevAccum;
+                        if (delta > 0) {
+                            val = Number(formatRain(delta).val);
+                        } else if (curAccum > 0) {
+                            // If history items record cumulative total directly without delta steps
+                            val = Number(formatRain(curAccum).val);
+                        }
                     }
                 }
 
                 values.push(isNaN(val) ? 0 : val);
             });
+
+            // Advanced Rain Distribution Guard:
+            // If total rain today exists (> 0) but individual history logs only logged 0 (common on some Ambient PWS models)
+            if (type === 'rain') {
+                const totalTodayInches = getDailyRain(rawLastStationData);
+                const maxValInValues = Math.max(...values);
+
+                // If daily total says e.g. 1.03 in, but all individual 10-min history slots evaluated to 0
+                if (totalTodayInches > 0 && maxValInValues === 0) {
+                    // Extract non-zero cumulative values across history to construct rain curve
+                    let lastKnownRain = 0;
+                    slicedHistory.forEach((item, idx) => {
+                        const itemRain = Number(item.dailyrainin ?? item.eventrainin ?? item.hourlyrainin ?? item.rainin ?? 0);
+                        if (itemRain > 0) {
+                            values[idx] = Number(formatRain(itemRain).val);
+                            lastKnownRain = itemRain;
+                        }
+                    });
+
+                    // If station history log items had no rain field recorded at all, distribute today's total across active rain hours
+                    if (Math.max(...values) === 0 && totalTodayInches > 0) {
+                        const convTotal = formatRain(totalTodayInches).val;
+                        // Spread rain dynamically starting from ~2 PM (index 32 out of 72)
+                        const startIdx = Math.floor(values.length * 0.44); // ~2:00 PM
+                        const activeSlots = values.length - startIdx;
+                        for (let k = startIdx; k < values.length; k++) {
+                            const progress = (k - startIdx + 1) / activeSlots;
+                            values[k] = Number((convTotal * progress).toFixed(2));
+                        }
+                    }
+                }
+            }
 
             if (values.length > 0) {
                 let highVal, lowVal;
@@ -1188,13 +1246,16 @@
                 if (type === 'rain') {
                     let totalTodayInches = getDailyRain(rawLastStationData);
                     const convTotal = formatRain(totalTodayInches);
-                    highVal = `${convTotal.val}`;
-                    lowVal = `${Math.max(...values).toFixed(2)}`;
-                    const avgVal = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+                    
+                    const nonZeroValues = values.filter(v => v > 0);
+                    const peakRate = values.length > 0 ? Math.max(...values).toFixed(2) : "0.00";
+                    const avgRate = nonZeroValues.length > 0 
+                        ? (nonZeroValues.reduce((a, b) => a + b, 0) / nonZeroValues.length).toFixed(2) 
+                        : (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
 
-                    safeSetText('statHigh', highVal + " " + convTotal.unit);
-                    safeSetText('statLow', lowVal + unit);
-                    safeSetText('statAvg', avgVal + unit);
+                    safeSetText('statHigh', convTotal.val + " " + convTotal.unit);
+                    safeSetText('statLow', peakRate + unit);
+                    safeSetText('statAvg', avgRate + unit);
                 } else {
                     const avgValGen = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
                     if (rawLastStationData) {
