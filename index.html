@@ -41,7 +41,7 @@
             border: 1px solid rgba(56, 189, 248, 0.15);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .glass-card:active {
+        .clickable-card:active {
             transform: scale(0.97);
             border-color: rgba(56, 189, 248, 0.5);
         }
@@ -163,7 +163,7 @@
         <div class="glass-card rounded-2xl p-3.5 relative overflow-hidden">
             <div class="flex items-center justify-between">
                 <!-- 1. Temperature Block (Left) - Clickable -->
-                <div onclick="openHistoryModal('outdoor_temp')" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition">
+                <div onclick="openHistoryModal('outdoor_temp')" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition clickable-card">
                     <div class="text-3xl text-sky-400 filter drop-shadow" id="weatherIconContainer">
                         <i class="fa-solid fa-sun"></i>
                     </div>
@@ -179,7 +179,7 @@
                 </div>
 
                 <!-- 2. Humidity Block (Middle, Large Font) - Clickable -->
-                <div onclick="openHistoryModal('outdoor_humidity')" class="text-center px-2 border-x border-slate-700/50 cursor-pointer hover:opacity-80 transition">
+                <div onclick="openHistoryModal('outdoor_humidity')" class="text-center px-2 border-x border-slate-700/50 cursor-pointer hover:opacity-80 transition clickable-card">
                     <div class="text-[9px] uppercase font-bold tracking-wider text-blue-400 flex items-center justify-center gap-1">
                         Humidity <i class="fa-solid fa-chart-line text-[8px] text-blue-400"></i>
                     </div>
@@ -191,7 +191,7 @@
 
                 <!-- 3. Other Data, History Prompt & Speech Briefing Button (Right) -->
                 <div class="text-right flex flex-col items-end gap-1">
-                    <div onclick="openHistoryModal('outdoor_temp')" class="cursor-pointer hover:opacity-80 transition">
+                    <div onclick="openHistoryModal('outdoor_temp')" class="cursor-pointer hover:opacity-80 transition clickable-card">
                         <div class="text-[10px] text-slate-300 font-medium">
                             Dew: <span id="dewPointDisplay" class="text-white">--</span>
                         </div>
@@ -200,8 +200,8 @@
                         </div>
                         <div class="text-[8px] text-slate-400 mt-0.5">Tap for history &rarr;</div>
                     </div>
-                    <!-- Speech Briefing Button -->
-                    <button onclick="playSpeechBriefing()" class="bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/30 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer mt-1">
+                    <!-- Speech Briefing Button (Isolated so only the button scales on click) -->
+                    <button onclick="playSpeechBriefing()" class="bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 border border-sky-400/30 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer mt-1">
                         <i class="fa-solid fa-volume-high text-[10px]"></i> Briefing
                     </button>
                 </div>
@@ -210,7 +210,7 @@
 
         <!-- INDOOR TEMPERATURE & HUMIDITY BLOCKS -->
         <div class="grid grid-cols-2 gap-2.5">
-            <div onclick="openHistoryModal('indoor_temp')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer">
+            <div onclick="openHistoryModal('indoor_temp')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
                 <div class="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 text-sm shrink-0 border border-orange-500/30">
                     <i class="fa-solid fa-house-chimney text-xs"></i>
                 </div>
@@ -219,7 +219,7 @@
                     <div class="text-base font-bold text-white truncate"><span id="indoorTempDisplay">--</span> <span class="text-xs font-normal text-slate-400" id="indoorTempUnit">°F</span></div>
                 </div>
             </div>
-            <div onclick="openHistoryModal('indoor_humidity')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer">
+            <div onclick="openHistoryModal('indoor_humidity')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
                 <div class="w-8 h-8 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-300 text-sm shrink-0 border border-teal-500/30">
                     <i class="fa-solid fa-droplet text-xs"></i>
                 </div>
@@ -232,7 +232,7 @@
 
         <!-- WIND (WITH 360-DEGREE WIND ROSE) & SOLAR RADIATION GRID -->
         <div class="grid grid-cols-2 gap-2.5">
-            <div onclick="openHistoryModal('wind')" class="glass-card rounded-2xl p-3 flex items-center justify-between gap-1.5 cursor-pointer">
+            <div onclick="openHistoryModal('wind')" class="glass-card rounded-2xl p-3 flex items-center justify-between gap-1.5 cursor-pointer clickable-card">
                 <div class="min-w-0">
                     <div class="text-[9px] uppercase font-bold text-slate-400 truncate">Wind (<span id="windDirText">--</span>)</div>
                     <div class="text-base font-bold text-white truncate">
@@ -266,7 +266,7 @@
                 </div>
             </div>
 
-            <div onclick="openHistoryModal('solar')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer">
+            <div onclick="openHistoryModal('solar')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
                 <div class="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-300 text-sm shrink-0 border border-amber-500/30">
                     <i class="fa-solid fa-sun text-xs"></i>
                 </div>
@@ -280,7 +280,7 @@
 
         <!-- PRESSURE & RAIN GRID -->
         <div class="grid grid-cols-2 gap-2.5">
-            <div onclick="openHistoryModal('pressure')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer">
+            <div onclick="openHistoryModal('pressure')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
                 <div class="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-300 text-sm shrink-0 border border-purple-500/30">
                     <i class="fa-solid fa-gauge-high text-xs"></i>
                 </div>
@@ -291,7 +291,7 @@
                 </div>
             </div>
 
-            <div onclick="openHistoryModal('rain')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer">
+            <div onclick="openHistoryModal('rain')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
                 <div class="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 text-sm shrink-0 border border-indigo-500/30">
                     <i class="fa-solid fa-cloud-showers-heavy text-xs"></i>
                 </div>
@@ -613,7 +613,6 @@
             localStorage.setItem('kd4bee_wx_config', JSON.stringify(config));
         }
 
-        // Theme Management (#1)
         function setThemeMode(mode) {
             config.themeMode = mode;
             updateThemeBtns(mode);
@@ -642,7 +641,6 @@
                 useLight = true;
             } else if (config.themeMode === 'auto') {
                 const hour = new Date().getHours();
-                // Auto daytime light mode between 6:30 AM (7) and 6:30 PM (18)
                 useLight = (hour >= 7 && hour < 18);
             }
 
@@ -1220,11 +1218,9 @@
             safeSetText('lastUpdatedDisplay', 'Synced ' + syncTime);
         }
 
-        // Update 360-degree Wind Rose Graphic & Historical Spokes (#4)
         function updateWindRoseGraphic(currentDir) {
             const needle = document.getElementById('windRoseNeedle');
             if (needle) {
-                // Needle naturally points straight up (0° North) and rotates clockwise to point where wind blows FROM
                 needle.setAttribute('transform', `rotate(${currentDir} 32 32)`);
             }
 
@@ -1234,7 +1230,6 @@
 
             if (!Array.isArray(recentHistoryData) || recentHistoryData.length === 0) return;
 
-            // Bucket recent readings into 16 compass sectors (22.5° each)
             const sectorWeights = new Array(16).fill(0);
             let maxWeight = 0;
 
@@ -1249,12 +1244,11 @@
 
             if (maxWeight === 0) return;
 
-            // Draw translucent distribution wedges/spokes for prevailing historical wind directions
             sectorWeights.forEach((weight, idx) => {
                 if (weight <= 0) return;
                 const angle = idx * 22.5;
                 const ratio = weight / maxWeight;
-                const spokeLen = 8 + ratio * 15; // Radius from 8px to 23px
+                const spokeLen = 8 + ratio * 15;
                 const y2 = 32 - spokeLen;
 
                 const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
@@ -1572,7 +1566,7 @@
             if (tempUnitSel) tempUnitSel.value = config.tempUnit;
             if (pressUnitSel) pressUnitSel.value = config.pressUnit;
             if (windUnitSel) windUnitSel.value = config.windUnit;
-            if (rainUnitSel) rainUnitSel.value = config.rainUnit;
+            if (rainUnitSel) config.rainUnit = config.rainUnit;
             if (refreshIntSel) refreshIntSel.value = config.refreshInterval;
 
             updateThemeBtns(config.themeMode || 'dark');
