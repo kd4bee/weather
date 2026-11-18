@@ -1,0 +1,2121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="300">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KD4BEE WX Weather Widget</title>
+    
+    <!-- Robust PWA Manifest & External Icon Links for Android/iOS Home Screen Shortcuts -->
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/1163/1163624.png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/1163/1163624.png">
+    <link rel="manifest" href='data:application/manifest+json;charset=utf-8,{"name":"KD4BEE WX","short_name":"KD4BEE WX","start_url":".","display":"standalone","background_color":"%23020617","theme_color":"%23020617","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/1163/1163624.png","sizes":"512x512","type":"image/png"}]}'>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for weather icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js for History & Forecast Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background: #020617;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            color: #f8fafc;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .clickable-card:active {
+            transform: scale(0.97);
+            border-color: rgba(56, 189, 248, 0.5);
+        }
+
+        /* Light Mode Overrides */
+        body.light-mode {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+        body.light-mode .glass-panel {
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.1);
+        }
+        body.light-mode .glass-card {
+            background: rgba(248, 250, 252, 0.85);
+            border: 1px solid rgba(14, 165, 233, 0.22);
+            box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.05);
+        }
+        body.light-mode .text-white {
+            color: #0f172a !important;
+        }
+        body.light-mode .text-slate-200 {
+            color: #1e293b !important;
+        }
+        body.light-mode .text-slate-300 {
+            color: #334155 !important;
+        }
+        body.light-mode .text-slate-400 {
+            color: #64748b !important;
+        }
+        body.light-mode .text-sky-200 {
+            color: #0369a1 !important;
+        }
+        body.light-mode .text-sky-300 {
+            color: #0284c7 !important;
+        }
+        body.light-mode .text-blue-300 {
+            color: #1d4ed8 !important;
+        }
+        body.light-mode .bg-slate-800\/80,
+        body.light-mode .bg-slate-800\/60,
+        body.light-mode .bg-slate-800\/50,
+        body.light-mode .bg-slate-800\/40,
+        body.light-mode .bg-slate-800 {
+            background-color: rgba(226, 232, 240, 0.85) !important;
+            color: #0f172a !important;
+        }
+        body.light-mode .bg-slate-900\/80 {
+            background-color: rgba(241, 245, 249, 0.95) !important;
+        }
+        body.light-mode .border-slate-700,
+        body.light-mode .border-slate-700\/60,
+        body.light-mode .border-slate-700\/50,
+        body.light-mode .border-slate-800 {
+            border-color: rgba(148, 163, 184, 0.45) !important;
+        }
+
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.3);
+            border-radius: 4px;
+        }
+        .animate-spin-fast {
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+
+    <!-- Mobile Screen Frame (S21+ Aspect Ratio & Width Optimized) -->
+    <div class="w-full max-w-[390px] mx-auto flex flex-col gap-3 my-auto">
+
+        <!-- Top Header: Title & Time/Date -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-sky-500/20 flex items-center justify-center border border-sky-400/40 text-sky-400">
+                        <i class="fa-solid fa-tower-cell text-sm"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xs font-bold tracking-wide text-sky-200 flex items-center gap-1.5">
+                            <span id="stationTitleDisplay">KD4BEE WX</span>
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse" id="connectionIndicator"></span>
+                        </h1>
+                        <p class="text-[9px] text-slate-400"><span id="stationLocationDisplay">Interlachen, FL</span> • Weather Station</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openSettingsModal()" class="w-7 h-7 rounded-lg bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-sky-300 border border-slate-700 transition cursor-pointer" title="Settings">
+                        <i class="fa-solid fa-gear text-xs"></i>
+                    </button>
+                    <!-- UTC Time Display -->
+                    <span class="text-xs font-mono font-semibold text-sky-300 bg-slate-800/80 px-2.5 py-1 rounded border border-sky-500/20" id="utcTimeDisplay">--:--:-- UTC</span>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-end pt-1 border-t border-slate-700/50">
+                <div>
+                    <div class="text-2xl font-black text-white tracking-tight leading-none flex items-baseline gap-1">
+                        <span id="localTimeDisplay">--:--:--</span>
+                        <span class="text-xs font-bold text-sky-400" id="localAmPm">--</span>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs font-semibold text-slate-200" id="localDateDisplay">Loading date...</div>
+                    <div class="text-[9px] text-slate-400 flex items-center justify-end gap-1">
+                        <i class="fa-solid fa-clock-rotate-left"></i> <span id="lastUpdatedDisplay">Syncing...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OUTDOOR TEMPERATURE, HUMIDITY & STATS CARD -->
+        <div class="glass-card rounded-2xl p-3.5 relative overflow-hidden">
+            <div class="flex items-center justify-between">
+                <!-- 1. Temperature Block (Left) - Clickable -->
+                <div onclick="openHistoryModal('outdoor_temp')" class="flex items-center gap-2 cursor-pointer hover:opacity-80 transition clickable-card">
+                    <div class="text-3xl text-sky-400 filter drop-shadow" id="weatherIconContainer">
+                        <i class="fa-solid fa-sun"></i>
+                    </div>
+                    <div>
+                        <div class="text-[9px] uppercase font-bold tracking-wider text-slate-400 flex items-center gap-1">
+                            Temp <i class="fa-solid fa-chart-line text-[8px] text-sky-400"></i>
+                        </div>
+                        <div class="flex items-baseline">
+                            <span class="text-3xl font-black tracking-tighter text-white" id="tempDisplay">--</span>
+                            <span class="text-sm font-bold text-sky-400 ml-0.5" id="tempUnitLabel">°F</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Humidity Block (Middle, Large Font) - Clickable -->
+                <div onclick="openHistoryModal('outdoor_humidity')" class="text-center px-2 border-x border-slate-700/50 cursor-pointer hover:opacity-80 transition clickable-card">
+                    <div class="text-[9px] uppercase font-bold tracking-wider text-blue-400 flex items-center justify-center gap-1">
+                        Humidity <i class="fa-solid fa-chart-line text-[8px] text-blue-400"></i>
+                    </div>
+                    <div class="flex items-baseline justify-center">
+                        <span class="text-3xl font-black tracking-tighter text-blue-300" id="humidityDisplay">--</span>
+                        <span class="text-sm font-bold text-blue-400 ml-0.5">%</span>
+                    </div>
+                </div>
+
+                <!-- 3. Other Data, History Prompt & Speech Briefing Button (Right) -->
+                <div class="text-right flex flex-col items-end gap-1">
+                    <div onclick="openHistoryModal('outdoor_temp')" class="cursor-pointer hover:opacity-80 transition clickable-card">
+                        <div class="text-[10px] text-slate-300 font-medium">
+                            Dew: <span id="dewPointDisplay" class="text-white">--</span>
+                        </div>
+                        <div class="text-[10px] text-sky-300 font-medium mt-0.5">
+                            Feels <strong id="feelsLikeDisplay" class="text-white">--</strong>
+                        </div>
+                        <div class="text-[8px] text-slate-400 mt-0.5">Tap for history &rarr;</div>
+                    </div>
+                    <!-- Action Buttons Row: Radar & Speech Briefing (Isolated scale on click) -->
+                    <div class="flex items-center gap-1 mt-1">
+                        <button onclick="openRadarModal()" class="bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 border border-emerald-400/30 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer" title="Animated Doppler Radar">
+                            <i class="fa-solid fa-satellite-dish text-[10px]"></i> Radar
+                        </button>
+                        <button onclick="playSpeechBriefing()" class="bg-sky-500/20 hover:bg-sky-500/30 active:scale-95 text-sky-300 border border-sky-400/30 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer" title="Audio Weather Briefing">
+                            <i class="fa-solid fa-volume-high text-[10px]"></i> Briefing
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- INDOOR TEMPERATURE & HUMIDITY BLOCKS -->
+        <div class="grid grid-cols-2 gap-2.5">
+            <div onclick="openHistoryModal('indoor_temp')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
+                <div class="w-8 h-8 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 text-sm shrink-0 border border-orange-500/30">
+                    <i class="fa-solid fa-house-chimney text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Indoor Temp</div>
+                    <div class="text-base font-bold text-white truncate"><span id="indoorTempDisplay">--</span> <span class="text-xs font-normal text-slate-400" id="indoorTempUnit">°F</span></div>
+                </div>
+            </div>
+            <div onclick="openHistoryModal('indoor_humidity')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
+                <div class="w-8 h-8 rounded-xl bg-teal-500/20 flex items-center justify-center text-teal-300 text-sm shrink-0 border border-teal-500/30">
+                    <i class="fa-solid fa-droplet text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Indoor Humidity</div>
+                    <div class="text-base font-bold text-white truncate"><span id="indoorHumidityDisplay">--</span> <span class="text-xs font-normal text-slate-400">%</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WIND (WITH 360-DEGREE WIND ROSE) & SOLAR RADIATION GRID -->
+        <div class="grid grid-cols-2 gap-2.5">
+            <div onclick="openHistoryModal('wind')" class="glass-card rounded-2xl p-3 flex items-center justify-between gap-1.5 cursor-pointer clickable-card">
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400 truncate">Wind (<span id="windDirText">--</span>)</div>
+                    <div class="text-base font-bold text-white truncate">
+                        <span id="windSpeedDisplay">--</span> <span class="text-[10px] font-normal text-slate-400" id="windUnitLabel">mph</span>
+                    </div>
+                    <div class="text-[9px] text-slate-400 truncate">Gust: <span id="windGustDisplay">--</span> <span id="windGustUnit">mph</span></div>
+                </div>
+                <!-- Mini 360-Degree Compass Rose Graphic -->
+                <div class="w-12 h-12 shrink-0 flex items-center justify-center relative" title="360° Wind Rose & Historical Distribution">
+                    <svg viewBox="0 0 64 64" class="w-full h-full overflow-visible">
+                        <!-- Outer Compass Ring -->
+                        <circle cx="32" cy="32" r="27" fill="rgba(14, 165, 233, 0.08)" stroke="rgba(56, 189, 248, 0.35)" stroke-width="1.2" />
+                        <circle cx="32" cy="32" r="16" fill="none" stroke="rgba(148, 163, 184, 0.2)" stroke-width="0.8" stroke-dasharray="2 2" />
+                        <!-- Cardinal Letters -->
+                        <text x="32" y="10" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#38bdf8">N</text>
+                        <text x="55" y="34" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">E</text>
+                        <text x="32" y="59" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">S</text>
+                        <text x="9" y="34" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">W</text>
+                        <!-- Historical Wind Distribution Spokes (Populated dynamically) -->
+                        <g id="windRoseHistoryGroup"></g>
+                        <!-- Current Wind Direction Pointer (Points toward where wind is blowing FROM) -->
+                        <g id="windRoseNeedle" transform="rotate(0 32 32)" style="transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);">
+                            <!-- Tail line across center -->
+                            <line x1="32" y1="11" x2="32" y2="46" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" />
+                            <!-- Arrowhead at outer edge pointing to origin -->
+                            <polygon points="32,6 27.5,15 32,13 36.5,15" fill="#38bdf8" />
+                            <!-- Center pivot dot -->
+                            <circle cx="32" cy="32" r="2.5" fill="#f8fafc" stroke="#0284c7" stroke-width="1.2" />
+                        </g>
+                    </svg>
+                </div>
+            </div>
+
+            <div onclick="openHistoryModal('solar')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
+                <div class="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-300 text-sm shrink-0 border border-amber-500/30">
+                    <i class="fa-solid fa-sun text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400 truncate">Solar Radiation</div>
+                    <div class="text-base font-bold text-white truncate"><span id="solarDisplay">--</span> <span class="text-[10px] font-normal text-slate-400">W/m²</span></div>
+                    <div class="text-[9px] text-slate-400 truncate">UV Index: <span id="uvDisplay" class="text-amber-300 font-bold">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRESSURE & RAIN GRID -->
+        <div class="grid grid-cols-2 gap-2.5">
+            <div onclick="openHistoryModal('pressure')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
+                <div class="w-8 h-8 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-300 text-sm shrink-0 border border-purple-500/30">
+                    <i class="fa-solid fa-gauge-high text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Barometer</div>
+                    <div class="text-base font-bold text-white truncate"><span id="pressureDisplay">--</span> <span class="text-[10px] font-normal text-slate-400" id="pressureUnitLabel">hPa</span></div>
+                    <div class="text-[9px] text-emerald-400 truncate" id="pressureTrend">Steady</div>
+                </div>
+            </div>
+
+            <div onclick="openHistoryModal('rain')" class="glass-card rounded-2xl p-3 flex items-center gap-2.5 cursor-pointer clickable-card">
+                <div class="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-300 text-sm shrink-0 border border-indigo-500/30">
+                    <i class="fa-solid fa-cloud-showers-heavy text-xs"></i>
+                </div>
+                <div class="min-w-0">
+                    <div class="text-[9px] uppercase font-bold text-slate-400">Rainfall</div>
+                    <div class="text-base font-bold text-white truncate"><span id="rainHourlyDisplay">--</span> <span class="text-[10px] font-normal text-slate-400" id="rainUnitLabel">in/h</span></div>
+                    <div class="text-[9px] text-slate-400 truncate">Day: <span id="rainDayDisplay">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 7-DAY FORECAST PANE (DYNAMIC FOR CURRENT STATION) -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-1.5">
+                <div class="text-[10px] uppercase font-bold text-slate-300 tracking-wider flex items-center gap-1">
+                    <i class="fa-solid fa-calendar-week text-sky-400"></i> <span id="forecastHeaderLocation">7-Day Forecast</span>
+                </div>
+                <span class="text-[9px] text-sky-400 flex items-center gap-0.5"><i class="fa-solid fa-hand-pointer"></i> Tap day</span>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center" id="forecastGrid">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+
+        <!-- Copyright Notice (Left-aligned, reduced vertical spacing) -->
+        <div class="text-left text-[10px] text-slate-400 px-2 -my-1">
+            Copyright <span id="copyrightYear"></span>, Billy Sparks, KD4BEE
+        </div>
+
+        <!-- Bottom Controls Bar -->
+        <div class="flex justify-between items-center text-[11px] text-slate-400 px-2 pt-1">
+            <span class="hover:text-sky-400 cursor-pointer flex items-center gap-1" onclick="refreshData()"><i class="fa-solid fa-rotate" id="refreshIcon"></i> Refresh Data</span>
+            <span class="hover:text-sky-400 cursor-pointer flex items-center gap-1" onclick="openSettingsModal()"><i class="fa-solid fa-wifi"></i> Mode: <span id="modeLabel" class="font-bold text-sky-300">LIVE</span></span>
+        </div>
+
+    </div>
+
+    <!-- CUSTOM TOAST MESSAGE BANNER (Replaces alert() cleanly) -->
+    <div id="toastBanner" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] hidden max-w-[360px] w-[92%] glass-panel border border-sky-400/50 text-sky-100 text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center justify-between gap-2">
+        <span id="toastMessage">Notification</span>
+        <button onclick="hideToast()" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- ANIMATED DOPPLER RADAR MODAL (Full-Screen Mobile-Friendly) -->
+    <div id="radarModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+        <div class="glass-panel w-full max-w-[420px] h-[88vh] max-h-[760px] rounded-3xl p-4 flex flex-col gap-2.5 border border-emerald-500/30 shadow-2xl relative">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 shrink-0">
+                <div>
+                    <h3 class="font-bold text-sm text-emerald-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-satellite-dish text-emerald-400 animate-pulse"></i>
+                        <span id="radarModalTitle">Putnam County Doppler Radar</span>
+                    </h3>
+                    <p class="text-[10px] text-slate-400" id="radarModalSubTitle">Interlachen, FL • Live Animated NEXRAD Loop</p>
+                </div>
+                <button onclick="closeRadarModal()" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white border border-slate-700 cursor-pointer" title="Close Radar">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Quick Station / Area Preset Bar -->
+            <div class="flex items-center justify-between gap-1.5 bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/70 shrink-0 text-[10px]">
+                <span class="text-slate-400 font-semibold px-1"><i class="fa-solid fa-location-dot text-emerald-400 mr-1"></i>Center:</span>
+                <div class="flex items-center gap-1">
+                    <button type="button" onclick="focusRadarPreset('putnam')" id="radarPresetPutnam" class="px-2 py-1 rounded-lg font-bold bg-emerald-500 text-slate-950 transition cursor-pointer">
+                        Putnam Co.
+                    </button>
+                    <button type="button" onclick="focusRadarPreset('station')" id="radarPresetStation" class="px-2 py-1 rounded-lg font-bold text-slate-300 hover:text-white bg-slate-700/60 transition cursor-pointer">
+                        Active Station
+                    </button>
+                </div>
+            </div>
+
+            <!-- Interactive Animated Doppler Radar Iframe Container -->
+            <div class="relative flex-1 w-full rounded-2xl overflow-hidden border border-slate-700/80 bg-slate-950">
+                <div id="radarLoadingOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 text-xs gap-2 pointer-events-none z-10 transition-opacity duration-300">
+                    <i class="fa-solid fa-radar fa-spin text-2xl text-emerald-400"></i>
+                    <span>Loading Animated Doppler Radar...</span>
+                </div>
+                <iframe
+                    id="dopplerRadarFrame"
+                    title="Animated Doppler Weather Radar"
+                    class="w-full h-full border-0"
+                    src="about:blank"
+                    allow="geolocation"
+                    loading="lazy"
+                    onload="hideRadarLoader()">
+                </iframe>
+            </div>
+
+            <!-- Bottom Actions: Open External Window & Close -->
+            <div class="grid grid-cols-2 gap-2 shrink-0 pt-0.5">
+                <a id="externalRadarLink" href="https://embed.windy.com/embed2.html?lat=29.6236&lon=-81.8898&detailLat=29.6236&detailLon=-81.8898&width=650&height=450&zoom=9&level=surface&overlay=radar&product=radar&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=mph&metricTemp=%C2%B0F&radarRange=-1" target="_blank" rel="noopener noreferrer" onclick="openExternalRadarWindow(event)" class="py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 font-semibold text-xs border border-emerald-400/40 flex items-center justify-center gap-1.5 transition cursor-pointer text-center">
+                    <i class="fa-solid fa-up-right-from-square text-[11px]"></i> Open External Window
+                </a>
+                <button onclick="closeRadarModal()" class="py-2 px-3 rounded-xl bg-sky-600/80 hover:bg-sky-600 active:scale-95 text-white font-semibold text-xs border border-sky-400/40 cursor-pointer transition">
+                    Close Radar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HISTORY / FORECAST POPUP MODAL -->
+    <div id="historyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-5 flex flex-col gap-3 border border-sky-500/30 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <div>
+                    <h3 class="font-bold text-sm text-sky-200 flex items-center gap-1.5" id="modalTitle">
+                        <i class="fa-solid fa-chart-line text-sky-400"></i> Detail View
+                    </h3>
+                    <p class="text-[10px] text-slate-400" id="modalSubTitle">12-Hour Trends & Detailed Stats</p>
+                </div>
+                <button onclick="closeHistoryModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white border border-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Modal Quick Summary Cards -->
+            <div class="grid grid-cols-3 gap-2 text-center" id="modalStatsGrid">
+                <div class="bg-slate-800/60 p-2 rounded-xl border border-slate-700">
+                    <div class="text-[9px] uppercase text-slate-400" id="statLabel1">High / Max</div>
+                    <div class="text-sm font-bold text-emerald-400" id="statHigh">--</div>
+                </div>
+                <div class="bg-slate-800/60 p-2 rounded-xl border border-slate-700">
+                    <div class="text-[9px] uppercase text-slate-400" id="statLabel2">Low / Min</div>
+                    <div class="text-sm font-bold text-sky-400" id="statLow">--</div>
+                </div>
+                <div class="bg-slate-800/60 p-2 rounded-xl border border-slate-700">
+                    <div class="text-[9px] uppercase text-slate-400" id="statLabel3">Average</div>
+                    <div class="text-sm font-bold text-amber-300" id="statAvg">--</div>
+                </div>
+            </div>
+
+            <!-- Chart Container -->
+            <div class="w-full h-48 bg-slate-900/80 rounded-xl p-2 border border-slate-800" id="chartWrapper">
+                <canvas id="historyChart"></canvas>
+            </div>
+
+            <!-- Forecast Detailed Text Description Container -->
+            <div class="hidden bg-slate-800/40 p-3 rounded-xl border border-slate-700/60 text-xs text-slate-200 leading-relaxed" id="forecastDetailText"></div>
+
+            <!-- History Raw Data List (Scrollable logs) -->
+            <div class="flex flex-col gap-1" id="recentReadingsGroup">
+                <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider" id="readingsLogTitle">Readings Log (12 Hours)</div>
+                <div class="max-h-40 overflow-y-auto flex flex-col gap-1 text-[11px]" id="modalDataList"></div>
+            </div>
+
+            <button onclick="closeHistoryModal()" class="w-full py-2 rounded-xl bg-sky-600/80 hover:bg-sky-600 text-white font-semibold text-xs border border-sky-400/40 cursor-pointer">
+                Close
+            </button>
+        </div>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-3 hidden">
+        <div class="glass-panel w-full max-w-sm rounded-3xl p-5 flex flex-col gap-3 border border-sky-500/30 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                <h3 class="font-bold text-sm text-sky-200 flex items-center gap-1.5">
+                    <i class="fa-solid fa-sliders text-sky-400"></i> Widget Settings
+                </h3>
+                <button onclick="closeSettingsModal()" class="w-7 h-7 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white border border-slate-700 cursor-pointer">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- Theme Selector (Dark / Light / Auto Sunset-Sunrise) -->
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Display Theme</label>
+                <div class="grid grid-cols-3 gap-1.5 bg-slate-800/60 p-1 rounded-xl border border-slate-700">
+                    <button type="button" id="themeDarkBtn" onclick="setThemeMode('dark')" class="py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-moon text-[10px]"></i> Dark
+                    </button>
+                    <button type="button" id="themeLightBtn" onclick="setThemeMode('light')" class="py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-sun text-[10px]"></i> Light
+                    </button>
+                    <button type="button" id="themeAutoBtn" onclick="setThemeMode('auto')" class="py-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-circle-half-stroke text-[10px]"></i> Auto
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mode Switcher -->
+            <div class="flex flex-col gap-1">
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Data Mode</label>
+                <div class="grid grid-cols-2 gap-2 bg-slate-800/60 p-1 rounded-xl border border-slate-700">
+                    <button type="button" id="modeLiveBtn" onclick="setMode(true)" class="py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">LIVE API</button>
+                    <button type="button" id="modeDemoBtn" onclick="setMode(false)" class="py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">DEMO MODE</button>
+                </div>
+            </div>
+
+            <!-- Station Manager Section -->
+            <div class="flex flex-col gap-2 bg-slate-800/50 p-3 rounded-2xl border border-slate-700">
+                <div class="flex items-center justify-between">
+                    <label class="text-[10px] font-bold text-sky-400 uppercase">Weather Station Manager</label>
+                    <button type="button" onclick="addNewStation()" class="text-[10px] text-sky-300 hover:text-white bg-sky-600/40 px-2 py-0.5 rounded border border-sky-500/30 transition cursor-pointer">
+                        <i class="fa-solid fa-plus"></i> Add New Station
+                    </button>
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Select Active Station</label>
+                    <select id="settingStationSelect" onchange="onStationDropdownChange()" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                        <!-- Populated dynamically -->
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Station Name</label>
+                    <input type="text" id="settingStationName" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">City, State / Location (Used if keys are blank)</label>
+                    <input type="text" id="settingStationLocation" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="e.g. Interlachen, FL">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Device MAC Address (Optional)</label>
+                    <input type="text" id="settingMacAddress" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Ambient API Key (Optional)</label>
+                    <input type="text" id="settingApiKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                </div>
+                <div>
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Application Key (Optional)</label>
+                    <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                    <button type="button" onclick="testDisplayElements()" class="text-[10px] text-emerald-400 hover:text-emerald-300 transition cursor-pointer flex items-center gap-1">
+                        <i class="fa-solid fa-play"></i> Test Station Display
+                    </button>
+                    <button type="button" onclick="deleteCurrentStation()" class="text-[10px] text-red-400 hover:text-red-300 transition cursor-pointer">
+                        <i class="fa-solid fa-trash"></i> Delete
+                    </button>
+                </div>
+            </div>
+
+            <!-- Units Config -->
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Temp Unit</label>
+                    <select id="settingTempUnit" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                        <option value="F">Fahrenheit (°F)</option>
+                        <option value="C">Celsius (°C)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Pressure Unit</label>
+                    <select id="settingPressUnit" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                        <option value="hPa">Hectopascals (hPa)</option>
+                        <option value="inHg">Inches Mercury (inHg)</option>
+                        <option value="mmHg">Millimeters Mercury (mmHg)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Wind Unit</label>
+                    <select id="settingWindUnit" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                        <option value="mph">MPH</option>
+                        <option value="kmh">km/h</option>
+                        <option value="kt">Knots</option>
+                        <option value="ms">m/s</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">Rain Unit</label>
+                    <select id="settingRainUnit" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                        <option value="in">Inches (in)</option>
+                        <option value="mm">Millimeters (mm)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Refresh Rate -->
+            <div>
+                <label class="text-[10px] font-bold text-slate-400 uppercase">Refresh Interval</label>
+                <select id="settingRefreshInterval" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
+                    <option value="15000">15 Seconds</option>
+                    <option value="60000">1 Minute</option>
+                    <option value="300000">5 Minutes</option>
+                </select>
+            </div>
+
+            <button onclick="saveSettings()" class="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs mt-1 transition cursor-pointer">
+                Save & Apply Settings
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // PERMANENTLY BAKED-IN STATIONS CONFIGURATION
+        // =========================================================================
+        const DEFAULT_STATIONS = [
+            {
+                name: "KD4BEE WX",
+                location: "Interlachen, FL",
+                lat: 29.6236,
+                lon: -81.8898,
+                macAddress: "8C:4F:00:4F:35:B2", 
+                apiKey: "546a87af80fb4cc19b43ed1d5d4bbaee7fa6f175baf44f3082d450f706ffbf89",
+                appKey: "7f76b38b64504544a02cdbf031215121118ab04e557547b7ba2a0c0f2ff6a688"
+            },
+            {
+                name: "Cherry Mountain",
+                location: "Cherry Mountain, NC",
+                lat: 35.4248,
+                lon: -81.7712,
+                macAddress: "E0:98:06:A3:3D:1D",
+                apiKey: "e628b3ba1253449591bc9bf5ebf32bee35017ec8e9b74666b26e50763fd21728",
+                appKey: "79231481a76f48b1a2f8e642d1e51ab4961283ee51564dbab14b945fdf3e6f37"
+            },
+            {
+                name: "Hollister",
+                location: "Hollister, FL",
+                lat: 29.6244,
+                lon: -81.7962,
+                macAddress: "48:3F:DA:89:B8:B2",
+                apiKey: "e628b3ba1253449591bc9bf5ebf32bee35017ec8e9b74666b26e50763fd21728",
+                appKey: "79231481a76f48b1a2f8e642d1e51ab4961283ee51564dbab14b945fdf3e6f37"
+            }
+        ];
+
+        let config = {
+            stations: DEFAULT_STATIONS,
+            activeStationIndex: 0,
+            isLiveMode: true,
+            themeMode: "dark", // 'dark', 'light', 'auto'
+            tempUnit: "F",
+            pressUnit: "hPa",
+            windUnit: "mph",
+            rainUnit: "in",
+            refreshInterval: 15000
+        };
+
+        const PUTNAM_COUNTY_RADAR_COORDS = {
+            lat: 29.6236,
+            lon: -81.8898,
+            zoom: 9,
+            title: "Putnam County Doppler Radar",
+            subtitle: "Interlachen, FL • Live Animated NEXRAD Loop"
+        };
+
+        let activeChart = null;
+        let recentHistoryData = [];
+        let forecastDaysData = [];
+        let refreshTimer = null;
+        let rawLastStationData = null;
+        let toastTimeout = null;
+
+        // =========================================================================
+        // NON-BLOCKING UI TOAST NOTIFICATION HELPER (Never uses alert())
+        // =========================================================================
+        function showToast(msg, duration = 3500) {
+            const banner = document.getElementById('toastBanner');
+            const msgEl = document.getElementById('toastMessage');
+            if (!banner || !msgEl) return;
+            msgEl.innerText = msg;
+            banner.classList.remove('hidden');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                banner.classList.add('hidden');
+            }, duration);
+        }
+
+        function hideToast() {
+            const banner = document.getElementById('toastBanner');
+            if (banner) banner.classList.add('hidden');
+        }
+
+        function safeSetText(id, val) {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        }
+
+        // =========================================================================
+        // MAC ADDRESS NORMALIZATION & FORMATTING HELPERS
+        // =========================================================================
+        function normalizeMacHex(mac) {
+            return (mac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
+        }
+
+        /**
+         * Formats any MAC address string into uppercase colon-separated format
+         * required by Ambient Weather's `/v1/devices/:macAddress` endpoint (e.g. 8C:4F:00:4F:35:B2).
+         */
+        function formatAmbientMac(mac) {
+            const clean = normalizeMacHex(mac);
+            if (clean.length === 12) {
+                return clean.match(/.{1,2}/g).join(':');
+            }
+            return (mac || '').trim().toUpperCase();
+        }
+
+        // =========================================================================
+        // ROBUST TELEMETRY EXTRACTORS (Prevents 0°F / 32°F Freezing Artifacts)
+        // =========================================================================
+        function isValidFiniteNumber(val) {
+            if (val === undefined || val === null || val === '') return false;
+            const num = Number(val);
+            return Number.isFinite(num);
+        }
+
+        /**
+         * Extracts outdoor temperature in Fahrenheit from an Ambient Weather record.
+         * Explicitly prioritizes `tempf` first and rejects undefined, null, or out-of-range
+         * sensor dropout values so missing records are never coerced into 0°F / 32°F.
+         */
+        function getOutdoorTemp(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.tempf, d.temp, d.outdoorTemp, d.temp1f];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    // Reject physically impossible sensor dropouts (e.g. -999 or > 150°F)
+                    if (num > -60 && num < 155) {
+                        return num;
+                    }
+                }
+            }
+            return undefined;
+        }
+
+        function getFeelsLike(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.feelsLike, d.feelsLikef, d.feelslike, getOutdoorTemp(d)];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    if (num > -80 && num < 165) return num;
+                }
+            }
+            return undefined;
+        }
+
+        function getDailyRain(d) {
+            if (!d || typeof d !== 'object') return 0;
+            const val = d.dailyrainin ?? d.eventrainin ?? d.rainin ?? 0;
+            return isValidFiniteNumber(val) ? Number(val) : 0;
+        }
+
+        /**
+         * Generic fetch helper with CORS proxy fallback chain for Ambient Weather REST API.
+         */
+        async function fetchAmbientEndpoint(targetUrl) {
+            // 1. Direct fetch attempt
+            try {
+                const directRes = await fetch(targetUrl);
+                if (directRes.ok) {
+                    return await directRes.json();
+                }
+            } catch (directErr) {
+                console.log('[KD4BEE WX] Direct fetch blocked/unavailable, trying proxy fallback...');
+            }
+
+            // 2. AllOrigins proxy fallback
+            try {
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const proxyRes = await fetch(proxyUrl);
+                if (proxyRes.ok) {
+                    const wrapper = await proxyRes.json();
+                    if (wrapper && wrapper.contents) {
+                        return typeof wrapper.contents === 'string'
+                            ? JSON.parse(wrapper.contents)
+                            : wrapper.contents;
+                    }
+                }
+            } catch (proxyErr) {
+                console.warn('[KD4BEE WX] Primary proxy failed:', proxyErr);
+            }
+
+            // 3. Secondary CORS proxy fallback (corsproxy.io)
+            try {
+                const altProxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+                const altRes = await fetch(altProxyUrl);
+                if (altRes.ok) {
+                    return await altRes.json();
+                }
+            } catch (altErr) {
+                console.warn('[KD4BEE WX] Secondary proxy failed:', altErr);
+            }
+
+            throw new Error('Unable to reach Ambient Weather API via direct or proxy routes.');
+        }
+
+        window.onload = function() {
+            loadConfigFromStorage();
+            applyTheme();
+            initClocks();
+            refreshData();
+            setupTimer();
+            const yearEl = document.getElementById('copyrightYear');
+            if (yearEl) yearEl.innerText = new Date().getFullYear();
+        };
+
+        function setupTimer() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(refreshData, parseInt(config.refreshInterval));
+        }
+
+        function loadConfigFromStorage() {
+            const saved = localStorage.getItem('kd4bee_wx_config');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.stations && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
+                        // Ensure built-in stations preserve valid MAC/keys/coords if user hasn't customized them
+                        parsed.stations = parsed.stations.map(st => {
+                            const defaultMatch = DEFAULT_STATIONS.find(def => def.name === st.name);
+                            if (defaultMatch) {
+                                return {
+                                    ...defaultMatch,
+                                    ...st,
+                                    lat: st.lat ?? defaultMatch.lat,
+                                    lon: st.lon ?? defaultMatch.lon,
+                                    macAddress: st.macAddress || defaultMatch.macAddress,
+                                    apiKey: st.apiKey || defaultMatch.apiKey,
+                                    appKey: st.appKey || defaultMatch.appKey
+                                };
+                            }
+                            return st;
+                        });
+                        config = { ...config, ...parsed };
+                    }
+                } catch (e) {
+                    console.warn('[KD4BEE WX] Failed to parse saved config:', e);
+                }
+            }
+        }
+
+        function saveConfigToStorage() {
+            localStorage.setItem('kd4bee_wx_config', JSON.stringify(config));
+        }
+
+        function setThemeMode(mode) {
+            config.themeMode = mode;
+            updateThemeBtns(mode);
+            applyTheme();
+        }
+
+        function updateThemeBtns(mode) {
+            const btns = {
+                dark: document.getElementById('themeDarkBtn'),
+                light: document.getElementById('themeLightBtn'),
+                auto: document.getElementById('themeAutoBtn')
+            };
+            Object.keys(btns).forEach(k => {
+                if (!btns[k]) return;
+                if (k === mode) {
+                    btns[k].className = "py-1.5 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 shadow cursor-pointer flex items-center justify-center gap-1";
+                } else {
+                    btns[k].className = "py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white cursor-pointer flex items-center justify-center gap-1";
+                }
+            });
+        }
+
+        function applyTheme() {
+            let useLight = false;
+            if (config.themeMode === 'light') {
+                useLight = true;
+            } else if (config.themeMode === 'auto') {
+                const hour = new Date().getHours();
+                useLight = (hour >= 7 && hour < 18);
+            }
+
+            if (useLight) {
+                document.body.classList.add('light-mode');
+            } else {
+                document.body.classList.remove('light-mode');
+            }
+        }
+
+        function initClocks() {
+            updateClocks();
+            setInterval(updateClocks, 1000);
+        }
+
+        function updateClocks() {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+            const timeParts = timeStr.split(' ');
+            safeSetText('localTimeDisplay', timeParts[0]);
+            safeSetText('localAmPm', timeParts[1] || '');
+
+            const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            safeSetText('localDateDisplay', dateStr);
+
+            const utcStr = now.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+            safeSetText('utcTimeDisplay', utcStr + ' UTC');
+
+            if (config.themeMode === 'auto' && now.getSeconds() === 0) {
+                applyTheme();
+            }
+        }
+
+        async function refreshData() {
+            const icon = document.getElementById('refreshIcon');
+            if (icon) icon.classList.add('animate-spin-fast');
+
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            safeSetText('stationTitleDisplay', currentStation.name);
+            safeSetText('stationLocationDisplay', currentStation.location || "Interlachen, FL");
+            safeSetText('forecastHeaderLocation', `${currentStation.location || 'Station'} 7-Day Forecast`);
+
+            try {
+                if (config.isLiveMode) {
+                    await fetchStationDataRouter();
+                    const indicator = document.getElementById('connectionIndicator');
+                    if (indicator) indicator.className = "inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse";
+                    safeSetText('modeLabel', currentStation.apiKey ? "LIVE (API)" : "LIVE (LOCATION)");
+                } else {
+                    useDemoData();
+                    const indicator = document.getElementById('connectionIndicator');
+                    if (indicator) indicator.className = "inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                    safeSetText('modeLabel', "DEMO");
+                }
+            } catch (err) {
+                console.warn("[KD4BEE WX] Data request failed, fallback to demo mode:", err);
+                useDemoData();
+                safeSetText('modeLabel', "API ERR (DEMO)");
+                const indicator = document.getElementById('connectionIndicator');
+                if (indicator) indicator.className = "inline-block w-2 h-2 rounded-full bg-red-400 animate-pulse";
+            } finally {
+                if (icon) setTimeout(() => icon.classList.remove('animate-spin-fast'), 600);
+            }
+        }
+
+        async function fetchStationDataRouter() {
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            
+            if (!currentStation.apiKey || currentStation.apiKey.trim() === "") {
+                await fetchLocationLiveWeather(currentStation.location || currentStation.name);
+                return;
+            }
+
+            const apiKey = currentStation.apiKey.trim();
+            const appKey = currentStation.appKey.trim();
+            const configuredMacRaw = (currentStation.macAddress || '').trim();
+            const configuredMacHex = normalizeMacHex(configuredMacRaw);
+            const formattedConfiguredMac = formatAmbientMac(configuredMacRaw);
+
+            console.log(`[KD4BEE WX] Fetching devices for station "${currentStation.name}" (MAC: ${formattedConfiguredMac || 'None'})`);
+
+            const devicesUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${encodeURIComponent(appKey)}&apiKey=${encodeURIComponent(apiKey)}`;
+            const data = await fetchAmbientEndpoint(devicesUrl);
+
+            if (data && Array.isArray(data) && data.length > 0) {
+                let matchedDevice = null;
+
+                // 1. Strict MAC address match (comparing normalized 12-char hex strings)
+                if (configuredMacHex.length > 0) {
+                    matchedDevice = data.find(dev => {
+                        const rawMac = dev.macAddress || dev.mac || dev.info?.mac || "";
+                        const devMacHex = normalizeMacHex(rawMac);
+                        return devMacHex === configuredMacHex;
+                    });
+
+                    if (!matchedDevice) {
+                        console.warn(`[KD4BEE WX] Exact MAC match not found in /v1/devices list for ${formattedConfiguredMac}. Returned MACs:`, data.map(d => d.macAddress || d.mac));
+                    }
+                }
+                
+                // 2. Match by station name only if no MAC was configured
+                if (!matchedDevice && configuredMacHex.length === 0 && currentStation.name) {
+                    matchedDevice = data.find(dev => {
+                        const devName = (dev.info?.name || dev.name || "").trim().toLowerCase();
+                        return devName.includes(currentStation.name.toLowerCase());
+                    });
+                }
+
+                // 3. Fallback to first device only when no MAC address was specified
+                if (!matchedDevice && configuredMacHex.length === 0) {
+                    matchedDevice = data[0];
+                }
+
+                // Determine the authoritative colon-separated uppercase MAC for direct history endpoint
+                const resolvedMac = matchedDevice
+                    ? formatAmbientMac(matchedDevice.macAddress || matchedDevice.mac || matchedDevice.info?.mac || formattedConfiguredMac)
+                    : formattedConfiguredMac;
+
+                if (!resolvedMac) {
+                    throw new Error("Unable to resolve valid MAC address for station");
+                }
+
+                console.log(`[KD4BEE WX] Resolved target MAC for history API: ${resolvedMac}`);
+
+                // Fetch direct device history from Ambient Weather `/v1/devices/:macAddress`
+                let histData = null;
+                try {
+                    const histUrl = `https://rt.ambientweather.net/v1/devices/${encodeURIComponent(resolvedMac)}?applicationKey=${encodeURIComponent(appKey)}&apiKey=${encodeURIComponent(apiKey)}&limit=72`;
+                    const rawHist = await fetchAmbientEndpoint(histUrl);
+                    if (Array.isArray(rawHist) && rawHist.length > 0) {
+                        histData = rawHist;
+                        console.log(`[KD4BEE WX] Retrieved ${histData.length} historical records for ${resolvedMac}`);
+                    }
+                } catch (hErr) {
+                    console.warn(`[KD4BEE WX] Direct device history endpoint failed for ${resolvedMac}:`, hErr);
+                }
+
+                // Establish latest telemetry record (`lastData` from matchedDevice or newest record from histData)
+                const latestTelemetry = (matchedDevice && matchedDevice.lastData)
+                    ? matchedDevice.lastData
+                    : (Array.isArray(histData) && histData.length > 0 ? histData[0] : null);
+
+                if (latestTelemetry) {
+                    rawLastStationData = latestTelemetry;
+                    if (matchedDevice?.info?.coords) {
+                        rawLastStationData._coords = matchedDevice.info.coords;
+                    } else if (latestTelemetry.coords) {
+                        rawLastStationData._coords = latestTelemetry.coords;
+                    }
+
+                    if (Array.isArray(histData) && histData.length > 0) {
+                        processRawHistory(histData);
+                    } else if (matchedDevice && Array.isArray(matchedDevice.history) && matchedDevice.history.length > 0) {
+                        processRawHistory(matchedDevice.history);
+                    } else {
+                        generateSyntheticHistory(rawLastStationData);
+                    }
+
+                    updateUI(rawLastStationData);
+                    await fetchDynamicNWSForecast();
+                } else {
+                    throw new Error("No valid station telemetry found for MAC " + resolvedMac);
+                }
+            } else {
+                throw new Error("No station data returned from Ambient Weather API");
+            }
+        }
+
+        /**
+         * Sorts raw Ambient Weather history records chronologically using `dateutc` (epoch ms)
+         * or ISO `date`, and filters out corrupted/empty records that could cause 0°F spikes.
+         */
+        function processRawHistory(rawArr) {
+            if (!Array.isArray(rawArr)) {
+                recentHistoryData = [];
+                return;
+            }
+
+            // Filter out non-object or timestamp-less entries
+            const validEntries = rawArr.filter(item => {
+                if (!item || typeof item !== 'object') return false;
+                const ts = item.dateutc ?? item.date;
+                return ts !== undefined && ts !== null;
+            });
+
+            // Sort oldest to newest
+            validEntries.sort((a, b) => {
+                const tA = new Date(a.dateutc ?? a.date).getTime();
+                const tB = new Date(b.dateutc ?? b.date).getTime();
+                return tA - tB;
+            });
+
+            // Filter out isolated zero-dropout temperature glitches (e.g., sudden 0°F when surrounding points are warm)
+            const sanitized = validEntries.filter((item, idx, arr) => {
+                const t = getOutdoorTemp(item);
+                if (t === 0) {
+                    const prevT = idx > 0 ? getOutdoorTemp(arr[idx - 1]) : undefined;
+                    const nextT = idx < arr.length - 1 ? getOutdoorTemp(arr[idx + 1]) : undefined;
+                    if ((prevT !== undefined && Math.abs(prevT) > 25) || (nextT !== undefined && Math.abs(nextT) > 25)) {
+                        return false; // Drop corrupted 0°F sensor packet
+                    }
+                }
+                return true;
+            });
+
+            recentHistoryData = sanitized.slice(-72);
+            console.log(`[KD4BEE WX] Processed ${recentHistoryData.length} valid chronological history records.`);
+        }
+
+        async function fetchLocationLiveWeather(locQuery) {
+            const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locQuery)}`);
+            if (!geoRes.ok) throw new Error("Geocoding failed");
+            const geoData = await geoRes.json();
+            if (!geoData || geoData.length === 0) throw new Error("Location not found");
+
+            const lat = parseFloat(geoData[0].lat);
+            const lon = parseFloat(geoData[0].lon);
+
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,surface_pressure,wind_speed_10m,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto`;
+            
+            const wRes = await fetch(weatherUrl);
+            if (!wRes.ok) throw new Error("Weather fetch failed");
+            const wData = await wRes.json();
+
+            if (wData && wData.current) {
+                const cur = wData.current;
+                const pressInHg = (cur.surface_pressure ? cur.surface_pressure / 33.8639 : 29.92);
+
+                rawLastStationData = {
+                    temp: cur.temperature_2m,
+                    tempf: cur.temperature_2m,
+                    tempmax: wData.daily?.temperature_2m_max?.[0] || cur.temperature_2m + 4,
+                    tempmin: wData.daily?.temperature_2m_min?.[0] || cur.temperature_2m - 4,
+                    feelsLike: cur.apparent_temperature,
+                    tempinf: 72.0,
+                    humidityin: 45,
+                    windspeedmph: cur.wind_speed_10m,
+                    windgustmph: cur.wind_speed_10m * 1.3,
+                    maxdailygust: cur.wind_speed_10m * 1.5,
+                    winddir: cur.wind_direction_10m || 0,
+                    humidity: cur.relative_humidity_2m,
+                    dewPoint: cur.temperature_2m - ((100 - cur.relative_humidity_2m) / 5),
+                    baromrelin: pressInHg,
+                    hourlyrainin: cur.precipitation || 0.0,
+                    dailyrainin: 0.0,
+                    solarradiation: 480.0,
+                    uv: 5,
+                    _coords: { lat, lon }
+                };
+
+                generateSyntheticHistory(rawLastStationData);
+                updateUI(rawLastStationData);
+
+                if (wData.daily && wData.daily.time) {
+                    parseOpenMeteoForecast(wData.daily);
+                } else {
+                    generateInterlachenFallbackForecast(cur.temperature_2m);
+                }
+            }
+        }
+
+        function parseOpenMeteoForecast(daily) {
+            forecastDaysData = [];
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            
+            for (let i = 0; i < daily.time.length && forecastDaysData.length < 7; i++) {
+                const dateObj = new Date(daily.time[i] + 'T00:00:00');
+                const dayOfWeek = days[dateObj.getDay()];
+                const high = daily.temperature_2m_max[i];
+                const low = daily.temperature_2m_min[i];
+                const code = daily.weather_code[i];
+                const precipProb = daily.precipitation_probability_max?.[i] || 10;
+
+                forecastDaysData.push({
+                    dayName: i === 0 ? 'Today' : dayOfWeek,
+                    fullDayName: i === 0 ? 'Today Forecast' : `${dayOfWeek} Forecast`,
+                    high: high,
+                    low: low,
+                    shortForecast: getWeatherCodeDescription(code),
+                    detailedForecast: `Forecast for ${dateObj.toLocaleDateString('en-US', {weekday: 'long', month: 'short', day: 'numeric'})}: High near ${Math.round(high)}°F, Low around ${Math.round(low)}°F. Precipitation chance: ${precipProb}%.`,
+                    icon: getWeatherCodeIcon(code),
+                    windSpeed: '5 to 10 mph',
+                    windDirection: 'Var',
+                    precipChance: precipProb
+                });
+            }
+            renderForecastGrid();
+        }
+
+        function getWeatherCodeDescription(code) {
+            if (code === 0) return 'Sunny & Clear';
+            if (code >= 1 && code <= 3) return 'Partly Cloudy';
+            if (code >= 45 && code <= 48) return 'Foggy';
+            if (code >= 51 && code <= 67) return 'Rain Showers';
+            if (code >= 71 && code <= 77) return 'Snow';
+            if (code >= 80 && code <= 82) return 'Rain Showers';
+            if (code >= 95) return 'Thunderstorms';
+            return 'Fair & Mild';
+        }
+
+        function getWeatherCodeIcon(code) {
+            if (code === 0) return 'fa-sun';
+            if (code >= 1 && code <= 3) return 'fa-cloud-sun';
+            if (code >= 51 && code <= 67) return 'fa-cloud-showers-heavy';
+            if (code >= 95) return 'fa-cloud-bolt';
+            return 'fa-cloud-sun';
+        }
+
+        async function fetchDynamicNWSForecast() {
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            let lat = null;
+            let lon = null;
+
+            if (rawLastStationData && rawLastStationData._coords) {
+                lat = rawLastStationData._coords.lat || rawLastStationData._coords.latitude;
+                lon = rawLastStationData._coords.lon || rawLastStationData._coords.longitude;
+            }
+
+            if (!lat || !lon) {
+                const locQuery = currentStation.location || "Interlachen, FL";
+                try {
+                    const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locQuery)}`);
+                    if (geoRes.ok) {
+                        const geoData = await geoRes.json();
+                        if (geoData && geoData.length > 0) {
+                            lat = parseFloat(geoData[0].lat);
+                            lon = parseFloat(geoData[0].lon);
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            if (lat && lon) {
+                try {
+                    const pointRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`);
+                    if (pointRes.ok) {
+                        const pointData = await pointRes.json();
+                        if (pointData && pointData.properties && pointData.properties.forecast) {
+                            const forecastRes = await fetch(pointData.properties.forecast);
+                            if (forecastRes.ok) {
+                                const forecastData = await forecastRes.json();
+                                if (forecastData && forecastData.properties && forecastData.properties.periods) {
+                                    parseNWSForecastPeriods(forecastData.properties.periods);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            generateInterlachenFallbackForecast(getOutdoorTemp(rawLastStationData) ?? 78);
+        }
+
+        function parseNWSForecastPeriods(periods) {
+            forecastDaysData = [];
+            for (let i = 0; i < periods.length && forecastDaysData.length < 7; i++) {
+                const p = periods[i];
+                if (p.isDaytime) {
+                    const night = periods[i+1] || p;
+                    forecastDaysData.push({
+                        dayName: forecastDaysData.length === 0 ? 'Today' : p.name.substring(0, 3),
+                        fullDayName: p.name,
+                        high: p.temperature,
+                        low: night.temperature,
+                        shortForecast: p.shortForecast,
+                        detailedForecast: p.detailedForecast,
+                        icon: getNwsIconClass(p.shortForecast),
+                        windSpeed: p.windSpeed,
+                        windDirection: p.windDirection,
+                        precipChance: p.probabilityOfPrecipitation ? (p.probabilityOfPrecipitation.value || 0) : 0
+                    });
+                }
+            }
+            renderForecastGrid();
+        }
+
+        function generateInterlachenFallbackForecast(baseTemp) {
+            forecastDaysData = [];
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const todayIdx = new Date().getDay();
+
+            for (let i = 0; i < 7; i++) {
+                const dayName = i === 0 ? 'Today' : days[(todayIdx + i) % 7];
+                const high = Math.round(baseTemp + Math.sin(i) * 4 + 2);
+                const low = Math.round(high - 14 - Math.cos(i) * 2);
+
+                forecastDaysData.push({
+                    dayName: dayName,
+                    fullDayName: dayName === 'Today' ? 'Today' : `${dayName} Forecast`,
+                    high: high,
+                    low: low,
+                    shortForecast: i % 3 === 0 ? 'Scattered Thunderstorms' : (i % 2 === 0 ? 'Partly Cloudy' : 'Sunny & Warm'),
+                    detailedForecast: `Forecast: High near ${high}°F with low around ${low}°F. Winds light at 5 to 10 mph.`,
+                    icon: i % 3 === 0 ? 'fa-cloud-bolt' : (i % 2 === 0 ? 'fa-cloud-sun' : 'fa-sun'),
+                    windSpeed: '5 to 10 mph',
+                    windDirection: 'E',
+                    precipChance: i % 3 === 0 ? 60 : 10
+                });
+            }
+            renderForecastGrid();
+        }
+
+        function renderForecastGrid() {
+            const grid = document.getElementById('forecastGrid');
+            if (!grid) return;
+            grid.innerHTML = "";
+
+            forecastDaysData.forEach((day, index) => {
+                const col = document.createElement('div');
+                col.className = "flex flex-col items-center bg-slate-800/40 p-1.5 rounded-xl border border-slate-700/50 hover:border-sky-400/50 cursor-pointer transition";
+                col.onclick = () => openForecastDayModal(index);
+                
+                const highConv = formatTemp(day.high);
+                const lowConv = formatTemp(day.low);
+
+                col.innerHTML = `
+                    <span class="text-[9px] font-bold text-slate-300">${day.dayName}</span>
+                    <i class="fa-solid ${day.icon} text-sky-400 text-xs my-1"></i>
+                    <span class="text-[10px] font-black text-white">${highConv.val}°</span>
+                    <span class="text-[8px] font-medium text-slate-400">${lowConv.val}°</span>
+                `;
+                grid.appendChild(col);
+            });
+        }
+
+        function getNwsIconClass(forecast) {
+            const f = forecast.toLowerCase();
+            if (f.includes('thunder') || f.includes('storm')) return 'fa-cloud-bolt';
+            if (f.includes('rain') || f.includes('shower')) return 'fa-cloud-showers-heavy';
+            if (f.includes('cloud') || f.includes('overcast')) return 'fa-cloud-sun';
+            return 'fa-sun';
+        }
+
+        function openForecastDayModal(index) {
+            const day = forecastDaysData[index];
+            if (!day) return;
+
+            const modal = document.getElementById('historyModal');
+            if (modal) modal.classList.remove('hidden');
+
+            safeSetText('modalTitle', day.fullDayName);
+            safeSetText('modalSubTitle', "Forecast Detail");
+
+            const highConv = formatTemp(day.high);
+            const lowConv = formatTemp(day.low);
+
+            safeSetText('statLabel1', "Expected High");
+            safeSetText('statHigh', `${highConv.val}°${highConv.unit}`);
+            safeSetText('statLabel2', "Expected Low");
+            safeSetText('statLow', `${lowConv.val}°${lowConv.unit}`);
+            safeSetText('statLabel3', "Precip Chance");
+            safeSetText('statAvg', `${day.precipChance}%`);
+
+            const chartWrapper = document.getElementById('chartWrapper');
+            if (chartWrapper) chartWrapper.classList.add('hidden');
+            const readingsGroup = document.getElementById('recentReadingsGroup');
+            if (readingsGroup) readingsGroup.classList.add('hidden');
+            
+            const detailTextEl = document.getElementById('forecastDetailText');
+            if (detailTextEl) {
+                detailTextEl.classList.remove('hidden');
+                detailTextEl.innerHTML = `
+                    <div class="font-bold text-sky-300 mb-1 flex items-center justify-between">
+                        <span>${day.shortForecast}</span>
+                        <span class="text-[10px] text-slate-400">Wind: ${day.windDirection} ${day.windSpeed}</span>
+                    </div>
+                    <p class="text-slate-300 leading-snug">${day.detailedForecast}</p>
+                `;
+            }
+        }
+
+        function useDemoData() {
+            rawLastStationData = {
+                temp: 78.2,
+                tempf: 78.2,
+                tempmax: 84.5,
+                tempmin: 68.1,
+                feelsLike: 80.1,
+                tempinf: 72.5,
+                humidityin: 48,
+                windspeedmph: 6.4,
+                windgustmph: 10.2,
+                maxdailygust: 18.4,
+                winddir: 135,
+                humidity: 62,
+                dewPoint: 64.0,
+                baromrelin: 29.92,
+                hourlyrainin: 0.0,
+                dailyrainin: 0.0,
+                solarradiation: 542.8,
+                uv: 6
+            };
+
+            generateSyntheticHistory(rawLastStationData);
+            updateUI(rawLastStationData);
+            generateInterlachenFallbackForecast(78.2);
+        }
+
+        function generateSyntheticHistory(base) {
+            recentHistoryData = [];
+            const now = Date.now();
+            const baseOutdoor = getOutdoorTemp(base) ?? 78.2;
+            const baseDir = base.winddir ?? 135;
+
+            for (let i = 72; i >= 0; i--) {
+                const time = new Date(now - i * 10 * 60 * 1000).toISOString();
+                const hoursAgo = (i * 10) / 60;
+                const tempOffset = Math.sin(hoursAgo / 3) * 6;
+                const calcTemp = Number((baseOutdoor + tempOffset).toFixed(1));
+                const calcDir = (Math.round(baseDir + Math.sin(hoursAgo) * 35) + 360) % 360;
+
+                recentHistoryData.push({
+                    date: time,
+                    temp: calcTemp,
+                    tempf: calcTemp,
+                    feelsLike: Number((calcTemp + 1.5).toFixed(1)),
+                    tempinf: Number(((base.tempinf ?? 72) + tempOffset * 0.3).toFixed(1)),
+                    humidityin: Math.min(100, Math.max(20, Math.round((base.humidityin ?? 48) + Math.sin(hoursAgo / 2) * 4))),
+                    windspeedmph: Math.max(0, Number(((base.windspeedmph ?? 6) + Math.cos(hoursAgo) * 3).toFixed(1))),
+                    windgustmph: Math.max(0, Number(((base.windgustmph ?? 10) + Math.cos(hoursAgo) * 4).toFixed(1))),
+                    winddir: calcDir,
+                    humidity: Math.min(100, Math.max(20, Math.round((base.humidity ?? 60) - tempOffset * 2))),
+                    baromrelin: Number(((base.baromrelin ?? 29.92) + Math.sin(hoursAgo/4) * 0.1).toFixed(2)),
+                    dailyrainin: 0.0,
+                    hourlyrainin: 0.0,
+                    solarradiation: Math.max(0, Number(((base.solarradiation ?? 500) + Math.sin(hoursAgo/2) * 300).toFixed(1))),
+                    uv: Math.max(0, Math.round((base.uv ?? 5) + Math.sin(hoursAgo/2) * 3))
+                });
+            }
+        }
+
+        function formatTemp(f) {
+            if (!isValidFiniteNumber(f)) return { val: '--', unit: config.tempUnit };
+            const num = Number(f);
+            if (config.tempUnit === 'C') {
+                return { val: ((num - 32) * 5 / 9).toFixed(1), unit: 'C' };
+            }
+            return { val: num.toFixed(1), unit: 'F' };
+        }
+
+        function formatPressure(inHg) {
+            if (!isValidFiniteNumber(inHg)) return { val: '--', unit: config.pressUnit };
+            const num = Number(inHg);
+            if (config.pressUnit === 'hPa') return { val: (num * 33.8639).toFixed(1), unit: 'hPa' };
+            if (config.pressUnit === 'mmHg') return { val: (num * 25.4).toFixed(1), unit: 'mmHg' };
+            return { val: num.toFixed(2), unit: 'inHg' };
+        }
+
+        function formatWind(mph) {
+            if (!isValidFiniteNumber(mph)) return { val: '--', unit: config.windUnit };
+            const num = Number(mph);
+            if (config.windUnit === 'kmh') return { val: (num * 1.60934).toFixed(1), unit: 'km/h' };
+            if (config.windUnit === 'kt') return { val: (num * 0.868976).toFixed(1), unit: 'kt' };
+            if (config.windUnit === 'ms') return { val: (num * 0.44704).toFixed(1), unit: 'm/s' };
+            return { val: num.toFixed(1), unit: 'mph' };
+        }
+
+        function formatRain(inches) {
+            if (!isValidFiniteNumber(inches)) return { val: '0.00', unit: config.rainUnit };
+            const num = Number(inches);
+            if (config.rainUnit === 'mm') return { val: (num * 25.4).toFixed(1), unit: 'mm' };
+            return { val: num.toFixed(2), unit: 'in' };
+        }
+
+        function updateUI(d) {
+            const temp = formatTemp(getOutdoorTemp(d));
+            const feels = formatTemp(getFeelsLike(d));
+            const inTemp = formatTemp(d.tempinf);
+
+            safeSetText('tempDisplay', temp.val);
+            safeSetText('tempUnitLabel', '°' + temp.unit);
+            safeSetText('feelsLikeDisplay', `${feels.val}°${feels.unit}`);
+            
+            safeSetText('indoorTempDisplay', inTemp.val);
+            safeSetText('indoorTempUnit', '°' + inTemp.unit);
+            safeSetText('indoorHumidityDisplay', d.humidityin !== undefined ? d.humidityin : '--');
+
+            const wind = formatWind(d.windspeedmph);
+            const gust = formatWind(d.windgustmph);
+            safeSetText('windSpeedDisplay', wind.val);
+            safeSetText('windUnitLabel', wind.unit);
+            safeSetText('windGustDisplay', gust.val);
+            safeSetText('windGustUnit', gust.unit);
+
+            safeSetText('humidityDisplay', d.humidity !== undefined ? d.humidity : '--');
+            const dew = formatTemp(d.dewPoint);
+            safeSetText('dewPointDisplay', `${dew.val}°${dew.unit}`);
+
+            const solar = isValidFiniteNumber(d.solarradiation) ? Number(d.solarradiation).toFixed(1) : '--';
+            const uv = isValidFiniteNumber(d.uv) ? d.uv : '--';
+            safeSetText('solarDisplay', solar);
+            safeSetText('uvDisplay', uv);
+
+            const press = formatPressure(d.baromrelin || d.baromabsin || 29.92);
+            safeSetText('pressureDisplay', press.val);
+            safeSetText('pressureUnitLabel', press.unit);
+
+            const rainHr = formatRain(d.hourlyrainin ?? d.rainin ?? d.eventrainin);
+            const rainDayVal = getDailyRain(d);
+            const rainDay = formatRain(rainDayVal);
+
+            safeSetText('rainHourlyDisplay', rainHr.val);
+            safeSetText('rainUnitLabel', `${rainHr.unit}/h`);
+            safeSetText('rainDayDisplay', `${rainDay.val} ${rainDay.unit}`);
+
+            const windDir = d.winddir || 0;
+            safeSetText('windDirText', getWindDirectionString(windDir));
+            updateWindRoseGraphic(windDir);
+
+            const syncTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            safeSetText('lastUpdatedDisplay', 'Synced ' + syncTime);
+        }
+
+        function updateWindRoseGraphic(currentDir) {
+            const needle = document.getElementById('windRoseNeedle');
+            if (needle) {
+                needle.setAttribute('transform', `rotate(${currentDir} 32 32)`);
+            }
+
+            const histGroup = document.getElementById('windRoseHistoryGroup');
+            if (!histGroup) return;
+            histGroup.innerHTML = "";
+
+            if (!Array.isArray(recentHistoryData) || recentHistoryData.length === 0) return;
+
+            const sectorWeights = new Array(16).fill(0);
+            let maxWeight = 0;
+
+            recentHistoryData.slice(-36).forEach(entry => {
+                if (isValidFiniteNumber(entry.winddir)) {
+                    const idx = Math.floor((Number(entry.winddir) / 22.5) + 0.5) % 16;
+                    const speedWeight = Math.max(1, Number(entry.windgustmph ?? entry.windspeedmph ?? 1));
+                    sectorWeights[idx] += speedWeight;
+                    if (sectorWeights[idx] > maxWeight) maxWeight = sectorWeights[idx];
+                }
+            });
+
+            if (maxWeight === 0) return;
+
+            sectorWeights.forEach((weight, idx) => {
+                if (weight <= 0) return;
+                const angle = idx * 22.5;
+                const ratio = weight / maxWeight;
+                const spokeLen = 8 + ratio * 15;
+                const y2 = 32 - spokeLen;
+
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", "32");
+                line.setAttribute("y1", "32");
+                line.setAttribute("x2", "32");
+                line.setAttribute("y2", y2.toFixed(1));
+                line.setAttribute("stroke", ratio > 0.7 ? "rgba(251, 191, 36, 0.65)" : "rgba(56, 189, 248, 0.35)");
+                line.setAttribute("stroke-width", "3.2");
+                line.setAttribute("stroke-linecap", "round");
+                line.setAttribute("transform", `rotate(${angle} 32 32)`);
+                histGroup.appendChild(line);
+            });
+        }
+
+        function getWindDirectionString(degrees) {
+            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            return directions[Math.floor((degrees / 22.5) + 0.5) % 16];
+        }
+
+        function playSpeechBriefing() {
+            if (!('speechSynthesis' in window)) {
+                showToast("Speech synthesis is not supported in this browser.");
+                return;
+            }
+            window.speechSynthesis.cancel();
+
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            const stationName = currentStation.name;
+            const tempVal = document.getElementById('tempDisplay').innerText;
+            const tempUnit = config.tempUnit === 'C' ? 'Celsius' : 'Fahrenheit';
+            const humVal = document.getElementById('humidityDisplay').innerText;
+            const windSpd = document.getElementById('windSpeedDisplay').innerText;
+            const windDir = document.getElementById('windDirText').innerText;
+            const windUnit = config.windUnit;
+            const pressVal = document.getElementById('pressureDisplay').innerText;
+            const pressUnit = document.getElementById('pressureUnitLabel').innerText;
+
+            const text = `Weather briefing for ${stationName}. Current temperature is ${tempVal} degrees ${tempUnit}, with humidity at ${humVal} percent. Wind is blowing from the ${windDir} at ${windSpd} ${windUnit}. Barometric pressure is ${pressVal} ${pressUnit}.`;
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // =========================================================================
+        // ANIMATED DOPPLER RADAR MODAL & EXTERNAL WINDOW HANDLERS
+        // =========================================================================
+        let activeRadarUrl = "";
+
+        function buildWindyRadarEmbedUrl(lat, lon, zoom = 9) {
+            const tempMetric = config.tempUnit === 'C' ? '°C' : '°F';
+            const windMetric = config.windUnit === 'kmh' ? 'km/h' : (config.windUnit === 'kt' ? 'kt' : (config.windUnit === 'ms' ? 'm/s' : 'mph'));
+            return `https://embed.windy.com/embed2.html?lat=${lat}&lon=${lon}&detailLat=${lat}&detailLon=${lon}&width=650&height=450&zoom=${zoom}&level=surface&overlay=radar&product=radar&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=${encodeURIComponent(windMetric)}&metricTemp=${encodeURIComponent(tempMetric)}&radarRange=-1`;
+        }
+
+        function resolveActiveStationRadarCoords() {
+            const st = config.stations[config.activeStationIndex] || config.stations[0];
+            // 1. Live telemetry coordinates from Ambient Weather if available
+            if (rawLastStationData && rawLastStationData._coords) {
+                const liveLat = Number(rawLastStationData._coords.lat ?? rawLastStationData._coords.latitude);
+                const liveLon = Number(rawLastStationData._coords.lon ?? rawLastStationData._coords.longitude);
+                if (Number.isFinite(liveLat) && Number.isFinite(liveLon)) {
+                    return {
+                        lat: liveLat,
+                        lon: liveLon,
+                        zoom: 9,
+                        title: `${st.name} Doppler Radar`,
+                        subtitle: `${st.location || 'Active Station'} • Live Animated NEXRAD Loop`
+                    };
+                }
+            }
+            // 2. Stored station coordinates
+            if (Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lon))) {
+                return {
+                    lat: Number(st.lat),
+                    lon: Number(st.lon),
+                    zoom: 9,
+                    title: `${st.name} Doppler Radar`,
+                    subtitle: `${st.location || 'Active Station'} • Live Animated NEXRAD Loop`
+                };
+            }
+            // 3. Default to Putnam County / Interlachen, FL
+            return PUTNAM_COUNTY_RADAR_COORDS;
+        }
+
+        function updateRadarPresetButtons(mode) {
+            const putnamBtn = document.getElementById('radarPresetPutnam');
+            const stationBtn = document.getElementById('radarPresetStation');
+            if (!putnamBtn || !stationBtn) return;
+
+            if (mode === 'putnam') {
+                putnamBtn.className = "px-2 py-1 rounded-lg font-bold bg-emerald-500 text-slate-950 transition cursor-pointer";
+                stationBtn.className = "px-2 py-1 rounded-lg font-bold text-slate-300 hover:text-white bg-slate-700/60 transition cursor-pointer";
+            } else {
+                stationBtn.className = "px-2 py-1 rounded-lg font-bold bg-emerald-500 text-slate-950 transition cursor-pointer";
+                putnamBtn.className = "px-2 py-1 rounded-lg font-bold text-slate-300 hover:text-white bg-slate-700/60 transition cursor-pointer";
+            }
+        }
+
+        function focusRadarPreset(mode) {
+            const target = mode === 'putnam' ? PUTNAM_COUNTY_RADAR_COORDS : resolveActiveStationRadarCoords();
+            updateRadarPresetButtons(mode);
+            loadRadarView(target);
+        }
+
+        function loadRadarView(target) {
+            safeSetText('radarModalTitle', target.title);
+            safeSetText('radarModalSubTitle', target.subtitle);
+
+            const embedUrl = buildWindyRadarEmbedUrl(target.lat, target.lon, target.zoom || 9);
+            activeRadarUrl = embedUrl;
+
+            const extLink = document.getElementById('externalRadarLink');
+            if (extLink) {
+                extLink.href = embedUrl;
+            }
+
+            const loader = document.getElementById('radarLoadingOverlay');
+            if (loader) {
+                loader.classList.remove('opacity-0');
+                loader.classList.remove('hidden');
+            }
+
+            const frame = document.getElementById('dopplerRadarFrame');
+            if (frame && frame.src !== embedUrl) {
+                frame.src = embedUrl;
+            } else if (loader) {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function hideRadarLoader() {
+            const loader = document.getElementById('radarLoadingOverlay');
+            if (loader) {
+                loader.classList.add('opacity-0');
+                setTimeout(() => loader.classList.add('hidden'), 300);
+            }
+        }
+
+        function openRadarModal() {
+            const modal = document.getElementById('radarModal');
+            if (modal) modal.classList.remove('hidden');
+
+            const st = config.stations[config.activeStationIndex] || config.stations[0];
+            const isPutnamStation = (st.location || '').toLowerCase().includes('interlachen') ||
+                                    (st.location || '').toLowerCase().includes('hollister') ||
+                                    (st.name || '').toUpperCase().includes('KD4BEE');
+
+            if (isPutnamStation) {
+                updateRadarPresetButtons('putnam');
+                const target = resolveActiveStationRadarCoords();
+                loadRadarView({
+                    ...target,
+                    title: st.name === 'KD4BEE WX' ? 'Putnam County Doppler Radar' : `${st.name} (Putnam Co.) Radar`
+                });
+            } else {
+                updateRadarPresetButtons('station');
+                loadRadarView(resolveActiveStationRadarCoords());
+            }
+        }
+
+        function closeRadarModal() {
+            const modal = document.getElementById('radarModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function openExternalRadarWindow(e) {
+            if (e) e.preventDefault();
+            const url = activeRadarUrl || buildWindyRadarEmbedUrl(PUTNAM_COUNTY_RADAR_COORDS.lat, PUTNAM_COUNTY_RADAR_COORDS.lon, 9);
+            const win = window.open(url, '_blank', 'noopener,noreferrer');
+            if (!win) {
+                showToast("Popup blocked by browser. Use your browser menu to allow popups.");
+            }
+        }
+
+        function testDisplayElements() {
+            const tempEl = document.getElementById('tempDisplay');
+            const humEl = document.getElementById('humidityDisplay');
+            const windEl = document.getElementById('windSpeedDisplay');
+            const pressEl = document.getElementById('pressureDisplay');
+            
+            if (tempEl) tempEl.innerText = '88.8';
+            if (humEl) humEl.innerText = '99';
+            if (windEl) windEl.innerText = '25.0';
+            if (pressEl) pressEl.innerText = '1013.2';
+            updateWindRoseGraphic(225);
+
+            setTimeout(() => {
+                refreshData();
+                showToast("Display test sequence completed for active station.");
+            }, 1500);
+        }
+
+        function openHistoryModal(type) {
+            const modal = document.getElementById('historyModal');
+            if (modal) modal.classList.remove('hidden');
+
+            const chartWrapper = document.getElementById('chartWrapper');
+            if (chartWrapper) chartWrapper.classList.remove('hidden');
+            const readingsGroup = document.getElementById('recentReadingsGroup');
+            if (readingsGroup) readingsGroup.classList.remove('hidden');
+            const detailTextEl = document.getElementById('forecastDetailText');
+            if (detailTextEl) detailTextEl.classList.add('hidden');
+
+            let title = "";
+            let unit = "";
+            let color = "#38bdf8";
+
+            safeSetText('statLabel1', "High / Max");
+            safeSetText('statLabel2', "Low / Min");
+            safeSetText('statLabel3', "Average");
+
+            switch(type) {
+                case 'outdoor_temp':
+                    title = "Outdoor Temp History";
+                    unit = "°" + config.tempUnit;
+                    color = "#38bdf8";
+                    break;
+                case 'outdoor_humidity':
+                    title = "Outdoor Humidity History";
+                    unit = "%";
+                    color = "#38bdf8";
+                    break;
+                case 'indoor_temp':
+                    title = "Indoor Temp History";
+                    unit = "°" + config.tempUnit;
+                    color = "#f97316";
+                    break;
+                case 'indoor_humidity':
+                    title = "Indoor Humidity History";
+                    unit = "%";
+                    color = "#14b8a6";
+                    break;
+                case 'wind':
+                    title = "Wind Speed & Gust History";
+                    unit = " " + config.windUnit;
+                    color = "#0ea5e9";
+                    break;
+                case 'solar':
+                    title = "Solar Radiation History";
+                    unit = " W/m²";
+                    color = "#f59e0b";
+                    break;
+                case 'pressure':
+                    title = `Pressure (${config.pressUnit})`;
+                    unit = " " + config.pressUnit;
+                    color = "#a855f7";
+                    break;
+                case 'rain':
+                    title = "12-Hour Rainfall Breakdown";
+                    unit = " " + config.rainUnit;
+                    color = "#6366f1";
+                    safeSetText('statLabel1', "Total Today");
+                    safeSetText('statLabel2', "12h Peak Rate");
+                    safeSetText('statLabel3', "12h Avg Rate");
+                    break;
+            }
+
+            safeSetText('modalTitle', title);
+            safeSetText('modalSubTitle', type === 'rain' ? "Past 12-Hour Hourly Rain & Logs" : "Station Historical Trends & Extrema");
+            safeSetText('readingsLogTitle', type === 'rain' ? "12-Hour Rainfall Log" : "Readings Log");
+
+            const labels = [];
+            const values = [];
+
+            const slicedHistory = recentHistoryData.slice(-72);
+
+            slicedHistory.forEach((item, idx) => {
+                const rawDate = item.dateutc ?? item.date;
+                const time = rawDate ? new Date(rawDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : `--:--`;
+
+                let parsedVal = null;
+
+                if (type === 'outdoor_temp') {
+                    const rawT = getOutdoorTemp(item);
+                    if (rawT === undefined) return; // Skip missing reading instead of coercing to 0 / freezing!
+                    parsedVal = Number(formatTemp(rawT).val);
+                } else if (type === 'outdoor_humidity') {
+                    if (!isValidFiniteNumber(item.humidity)) return;
+                    parsedVal = Number(item.humidity);
+                } else if (type === 'indoor_temp') {
+                    if (!isValidFiniteNumber(item.tempinf)) return;
+                    parsedVal = Number(formatTemp(item.tempinf).val);
+                } else if (type === 'indoor_humidity') {
+                    if (!isValidFiniteNumber(item.humidityin)) return;
+                    parsedVal = Number(item.humidityin);
+                } else if (type === 'wind') {
+                    const rawW = item.windgustmph ?? item.windspeedmph;
+                    if (!isValidFiniteNumber(rawW)) return;
+                    parsedVal = Number(formatWind(rawW).val);
+                } else if (type === 'solar') {
+                    if (!isValidFiniteNumber(item.solarradiation)) return;
+                    parsedVal = Number(item.solarradiation);
+                } else if (type === 'pressure') {
+                    const rawP = item.baromrelin ?? item.baromabsin;
+                    if (!isValidFiniteNumber(rawP)) return;
+                    parsedVal = Number(formatPressure(rawP).val);
+                } else if (type === 'rain') {
+                    let val = 0;
+                    let directRate = item.hourlyrainin ?? item.rainin;
+                    if (isValidFiniteNumber(directRate) && Number(directRate) > 0) {
+                        val = Number(formatRain(directRate).val);
+                    } else {
+                        const curAccum = Number(item.dailyrainin ?? item.eventrainin ?? item.weeklyrainin ?? 0);
+                        const prevAccum = idx > 0 ? Number(slicedHistory[idx - 1].dailyrainin ?? slicedHistory[idx - 1].eventrainin ?? slicedHistory[idx - 1].weeklyrainin ?? 0) : curAccum;
+                        const delta = curAccum - prevAccum;
+                        if (delta > 0) {
+                            val = Number(formatRain(delta).val);
+                        } else if (curAccum > 0) {
+                            val = Number(formatRain(curAccum).val);
+                        }
+                    }
+                    parsedVal = val;
+                }
+
+                if (parsedVal !== null && Number.isFinite(parsedVal)) {
+                    labels.push(time);
+                    values.push(parsedVal);
+                }
+            });
+
+            if (type === 'rain') {
+                const totalTodayInches = getDailyRain(rawLastStationData);
+                const maxValInValues = values.length > 0 ? Math.max(...values) : 0;
+
+                if (totalTodayInches > 0 && maxValInValues === 0) {
+                    slicedHistory.forEach((item, idx) => {
+                        const itemRain = Number(item.dailyrainin ?? item.eventrainin ?? item.hourlyrainin ?? item.rainin ?? 0);
+                        if (itemRain > 0 && idx < values.length) {
+                            values[idx] = Number(formatRain(itemRain).val);
+                        }
+                    });
+
+                    if (values.length > 0 && Math.max(...values) === 0 && totalTodayInches > 0) {
+                        const convTotal = formatRain(totalTodayInches).val;
+                        const startIdx = Math.floor(values.length * 0.44);
+                        const activeSlots = values.length - startIdx;
+                        for (let k = startIdx; k < values.length; k++) {
+                            const progress = (k - startIdx + 1) / activeSlots;
+                            values[k] = Number((convTotal * progress).toFixed(2));
+                        }
+                    }
+                }
+            }
+
+            if (values.length > 0) {
+                let highVal, lowVal;
+
+                if (type === 'rain') {
+                    let totalTodayInches = getDailyRain(rawLastStationData);
+                    const convTotal = formatRain(totalTodayInches);
+                    
+                    const nonZeroValues = values.filter(v => v > 0);
+                    const peakRate = Math.max(...values).toFixed(2);
+                    const avgRate = nonZeroValues.length > 0 
+                        ? (nonZeroValues.reduce((a, b) => a + b, 0) / nonZeroValues.length).toFixed(2) 
+                        : (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+
+                    safeSetText('statHigh', convTotal.val + " " + convTotal.unit);
+                    safeSetText('statLow', peakRate + unit);
+                    safeSetText('statAvg', avgRate + unit);
+                } else {
+                    const avgValGen = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+                    if (rawLastStationData) {
+                        if (type === 'outdoor_temp') {
+                            const maxHistory = Math.max(...values);
+                            const minHistory = Math.min(...values);
+                            highVal = isValidFiniteNumber(rawLastStationData.tempmax)
+                                ? Math.max(Number(formatTemp(rawLastStationData.tempmax).val), maxHistory).toFixed(1)
+                                : maxHistory.toFixed(1);
+                            lowVal = isValidFiniteNumber(rawLastStationData.tempmin)
+                                ? Math.min(Number(formatTemp(rawLastStationData.tempmin).val), minHistory).toFixed(1)
+                                : minHistory.toFixed(1);
+                        } else if (type === 'wind') {
+                            highVal = isValidFiniteNumber(rawLastStationData.maxdailygust)
+                                ? formatWind(rawLastStationData.maxdailygust).val
+                                : Math.max(...values).toFixed(1);
+                            lowVal = Math.min(...values).toFixed(1);
+                        } else {
+                            highVal = Math.max(...values).toFixed(1);
+                            lowVal = Math.min(...values).toFixed(1);
+                        }
+                    } else {
+                        highVal = Math.max(...values).toFixed(1);
+                        lowVal = Math.min(...values).toFixed(1);
+                    }
+                    safeSetText('statHigh', highVal + unit);
+                    safeSetText('statLow', lowVal + unit);
+                    safeSetText('statAvg', avgValGen + unit);
+                }
+            } else {
+                safeSetText('statHigh', '--');
+                safeSetText('statLow', '--');
+                safeSetText('statAvg', '--');
+            }
+
+            const listEl = document.getElementById('modalDataList');
+            if (listEl) {
+                listEl.innerHTML = "";
+                for (let i = values.length - 1; i >= 0; i--) {
+                    const row = document.createElement('div');
+                    row.className = "flex justify-between items-center bg-slate-800/40 px-2 py-1 rounded border border-slate-700/50";
+                    row.innerHTML = `<span class="text-slate-400 font-mono">${labels[i]}</span> <span class="font-bold text-white">${values[i]}${unit}</span>`;
+                    listEl.appendChild(row);
+                }
+            }
+
+            renderChart(labels, values, title, unit, color, type);
+        }
+
+        function renderChart(labels, values, label, unit, color, type) {
+            const canvas = document.getElementById('historyChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            if (activeChart) activeChart.destroy();
+
+            const beginZero = (type === 'rain' || type === 'solar' || type === 'outdoor_humidity' || type === 'indoor_humidity' || type === 'wind');
+            const isLight = document.body.classList.contains('light-mode');
+            const tickColor = isLight ? '#475569' : '#94a3b8';
+            const gridColor = isLight ? '#cbd5e1' : '#334155';
+
+            activeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: values,
+                        borderColor: color,
+                        backgroundColor: color + '22',
+                        fill: true,
+                        tension: 0.35,
+                        borderWidth: 2,
+                        pointRadius: 1.5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { 
+                            ticks: { 
+                                color: tickColor, 
+                                font: { size: 9 },
+                                maxTicksLimit: 6
+                            }, 
+                            grid: { display: false } 
+                        },
+                        y: { 
+                            ticks: { color: tickColor, font: { size: 9 } }, 
+                            grid: { color: gridColor },
+                            beginAtZero: beginZero
+                        }
+                    }
+                }
+            });
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function openSettingsModal() {
+            populateStationDropdown();
+            loadActiveStationIntoForm();
+
+            const tempUnitSel = document.getElementById('settingTempUnit');
+            const pressUnitSel = document.getElementById('settingPressUnit');
+            const windUnitSel = document.getElementById('settingWindUnit');
+            const rainUnitSel = document.getElementById('settingRainUnit');
+            const refreshIntSel = document.getElementById('settingRefreshInterval');
+
+            if (tempUnitSel) tempUnitSel.value = config.tempUnit;
+            if (pressUnitSel) pressUnitSel.value = config.pressUnit;
+            if (windUnitSel) windUnitSel.value = config.windUnit;
+            if (rainUnitSel) rainUnitSel.value = config.rainUnit;
+            if (refreshIntSel) refreshIntSel.value = config.refreshInterval;
+
+            updateThemeBtns(config.themeMode || 'dark');
+            updateModeBtns(config.isLiveMode);
+            const modal = document.getElementById('settingsModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function populateStationDropdown() {
+            const selectEl = document.getElementById('settingStationSelect');
+            if (!selectEl) return;
+            selectEl.innerHTML = "";
+            config.stations.forEach((st, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.innerText = st.name;
+                if (idx === config.activeStationIndex) opt.selected = true;
+                selectEl.appendChild(opt);
+            });
+        }
+
+        function loadActiveStationIntoForm() {
+            const st = config.stations[config.activeStationIndex] || config.stations[0];
+            const nameInput = document.getElementById('settingStationName');
+            const locationInput = document.getElementById('settingStationLocation');
+            const macInput = document.getElementById('settingMacAddress');
+            const apiKeyInput = document.getElementById('settingApiKey');
+            const appKeyInput = document.getElementById('settingAppKey');
+
+            if (nameInput) nameInput.value = st.name;
+            if (locationInput) locationInput.value = st.location || "";
+            if (macInput) macInput.value = st.macAddress || "";
+            if (apiKeyInput) apiKeyInput.value = st.apiKey || "";
+            if (appKeyInput) appKeyInput.value = st.appKey || "";
+        }
+
+        function onStationDropdownChange() {
+            saveFormToCurrentStationIndex();
+            const selectEl = document.getElementById('settingStationSelect');
+            if (selectEl) {
+                config.activeStationIndex = parseInt(selectEl.value);
+                loadActiveStationIntoForm();
+            }
+        }
+
+        function saveFormToCurrentStationIndex() {
+            const nameInput = document.getElementById('settingStationName');
+            const locationInput = document.getElementById('settingStationLocation');
+            const macInput = document.getElementById('settingMacAddress');
+            const apiKeyInput = document.getElementById('settingApiKey');
+            const appKeyInput = document.getElementById('settingAppKey');
+
+            if (config.stations[config.activeStationIndex]) {
+                if (nameInput) config.stations[config.activeStationIndex].name = nameInput.value.trim() || "Station " + (config.activeStationIndex + 1);
+                if (locationInput) config.stations[config.activeStationIndex].location = locationInput.value.trim();
+                if (macInput) config.stations[config.activeStationIndex].macAddress = formatAmbientMac(macInput.value.trim());
+                if (apiKeyInput) config.stations[config.activeStationIndex].apiKey = apiKeyInput.value.trim();
+                if (appKeyInput) config.stations[config.activeStationIndex].appKey = appKeyInput.value.trim();
+            }
+        }
+
+        function addNewStation() {
+            saveFormToCurrentStationIndex();
+            config.stations.push({
+                name: "Station " + (config.stations.length + 1),
+                location: "City, State",
+                macAddress: "",
+                apiKey: "",
+                appKey: ""
+            });
+            config.activeStationIndex = config.stations.length - 1;
+            populateStationDropdown();
+            loadActiveStationIntoForm();
+        }
+
+        function deleteCurrentStation() {
+            if (config.stations.length <= 1) {
+                showToast("You must keep at least one weather station.");
+                return;
+            }
+            config.stations.splice(config.activeStationIndex, 1);
+            config.activeStationIndex = Math.max(0, config.activeStationIndex - 1);
+            populateStationDropdown();
+            loadActiveStationIntoForm();
+        }
+
+        function closeSettingsModal() {
+            const modal = document.getElementById('settingsModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function setMode(isLive) {
+            config.isLiveMode = isLive;
+            updateModeBtns(isLive);
+        }
+
+        function updateModeBtns(isLive) {
+            const liveBtn = document.getElementById('modeLiveBtn');
+            const demoBtn = document.getElementById('modeDemoBtn');
+            if (liveBtn && demoBtn) {
+                if (isLive) {
+                    liveBtn.className = "py-1.5 rounded-lg text-xs font-bold bg-sky-500 text-slate-950 shadow cursor-pointer";
+                    demoBtn.className = "py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white cursor-pointer";
+                } else {
+                    demoBtn.className = "py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 shadow cursor-pointer";
+                    liveBtn.className = "py-1.5 rounded-lg text-xs font-bold text-slate-400 hover:text-white cursor-pointer";
+                }
+            }
+        }
+
+        function saveSettings() {
+            saveFormToCurrentStationIndex();
+
+            const tempUnitSel = document.getElementById('settingTempUnit');
+            const pressUnitSel = document.getElementById('settingPressUnit');
+            const windUnitSel = document.getElementById('settingWindUnit');
+            const rainUnitSel = document.getElementById('settingRainUnit');
+            const refreshIntSel = document.getElementById('settingRefreshInterval');
+
+            if (tempUnitSel) config.tempUnit = tempUnitSel.value;
+            if (pressUnitSel) config.pressUnit = pressUnitSel.value;
+            if (windUnitSel) config.windUnit = windUnitSel.value;
+            if (rainUnitSel) config.rainUnit = rainUnitSel.value;
+            if (refreshIntSel) config.refreshInterval = refreshIntSel.value;
+
+            applyTheme();
+            saveConfigToStorage();
+            setupTimer();
+            closeSettingsModal();
+            refreshData();
+        }
+    </script>
+</body>
+</html>

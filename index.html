@@ -159,6 +159,27 @@
             </div>
         </div>
 
+        <!-- DEDICATED NWS SEVERE WEATHER ALERT PANE (Appears only when active) -->
+        <div id="nwsAlertPane" class="hidden glass-card rounded-2xl p-2.5 bg-red-950/40 border border-red-500/40 shadow-lg relative overflow-hidden">
+            <a id="nwsAlertLink" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-red-200 hover:text-white transition group">
+                <div class="w-7 h-7 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0 border border-red-500/40 animate-pulse">
+                    <i class="fa-solid fa-triangle-exclamation text-xs"></i>
+                </div>
+                <div class="min-w-0 flex-1 overflow-hidden">
+                    <div class="text-[9px] uppercase font-black text-red-400 tracking-wider">Active NWS Weather Alert • Tap for Details</div>
+                    <!-- Scrolling marquee effect container -->
+                    <div class="w-full overflow-hidden whitespace-nowrap">
+                        <marquee scrollamount="4" class="text-xs font-bold text-red-200 block">
+                            <span id="nwsAlertTitle">Severe Weather Warning Issued</span>
+                        </marquee>
+                    </div>
+                </div>
+                <div class="text-[10px] text-red-400 font-bold shrink-0 pl-1 group-hover:translate-x-0.5 transition">
+                    &rarr;
+                </div>
+            </a>
+        </div>
+
         <!-- OUTDOOR TEMPERATURE, HUMIDITY & STATS CARD -->
         <div class="glass-card rounded-2xl p-3.5 relative overflow-hidden">
             <div class="flex items-center justify-between">
@@ -200,6 +221,7 @@
                         </div>
                         <div class="text-[8px] text-slate-400 mt-0.5">Tap for history &rarr;</div>
                     </div>
+                    
                     <!-- Action Buttons Row: Radar & Speech Briefing (Isolated scale on click) -->
                     <div class="flex items-center gap-1 mt-1">
                         <button onclick="openRadarModal()" class="bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 border border-emerald-400/30 text-[9px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer" title="Animated Doppler Radar">
@@ -1020,12 +1042,87 @@
 
                     updateUI(rawLastStationData);
                     await fetchDynamicNWSForecast();
+                    await checkNwsAlerts();
                 } else {
                     throw new Error("No valid station telemetry found for MAC " + resolvedMac);
                 }
             } else {
                 throw new Error("No station data returned from Ambient Weather API");
             }
+        }
+
+        /**
+         * Checks for active NWS alerts for the active station's coordinates and builds a valid NWS details URL
+         */
+        async function checkNwsAlerts() {
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            let lat = null;
+            let lon = null;
+
+            if (rawLastStationData && rawLastStationData._coords) {
+                lat = Number(rawLastStationData._coords.lat ?? rawLastStationData._coords.latitude);
+                lon = Number(rawLastStationData._coords.lon ?? rawLastStationData._coords.longitude);
+            }
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                lat = Number(currentStation.lat);
+                lon = Number(currentStation.lon);
+            }
+
+            const alertPane = document.getElementById('nwsAlertPane');
+            const alertLink = document.getElementById('nwsAlertLink');
+            const alertTitle = document.getElementById('nwsAlertTitle');
+
+            if (!alertPane || !alertLink || !alertTitle) return;
+
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                alertPane.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Array.isArray(data.features) && data.features.length > 0) {
+                        const activeAlert = data.features[0];
+                        const props = activeAlert.properties || {};
+                        const headline = props.headline || props.event || "Severe Weather Warning Issued";
+                        const eventName = props.event || "Warning";
+
+                        // Extract NWS UGC codes (Forecast Zone like FLZ137 & County like FLC107)
+                        const ugcList = (props.geocode && Array.isArray(props.geocode.UGC)) ? props.geocode.UGC : [];
+                        const warnZone = ugcList.find(code => /^[A-Z]{2}Z\d{3}$/.test(code)) || "";
+                        const warnCounty = ugcList.find(code => /^[A-Z]{2}C\d{3}$/.test(code)) || "";
+
+                        let detailsUrl;
+                        if (warnZone || warnCounty) {
+                            const params = new URLSearchParams({
+                                warnzone: warnZone,
+                                warncounty: warnCounty,
+                                firewxzone: warnZone,
+                                local_place1: currentStation.location || 'Current Location',
+                                product1: eventName,
+                                lat: lat.toFixed(4),
+                                lon: lon.toFixed(4)
+                            });
+                            detailsUrl = `https://forecast.weather.gov/showsigwx.php?${params.toString()}`;
+                        } else {
+                            detailsUrl = `https://forecast.weather.gov/MapClick.php?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`;
+                        }
+
+                        alertTitle.innerText = headline;
+                        alertLink.href = detailsUrl;
+                        alertPane.classList.remove('hidden');
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn("[KD4BEE WX] NWS alerts fetch encountered an issue:", err);
+            }
+
+            // Hide alert pane if no active warnings
+            alertPane.classList.add('hidden');
         }
 
         /**
@@ -1118,6 +1215,7 @@
                 } else {
                     generateInterlachenFallbackForecast(cur.temperature_2m);
                 }
+                await checkNwsAlerts();
             }
         }
 
@@ -1176,6 +1274,11 @@
             if (rawLastStationData && rawLastStationData._coords) {
                 lat = rawLastStationData._coords.lat || rawLastStationData._coords.latitude;
                 lon = rawLastStationData._coords.lon || rawLastStationData._coords.longitude;
+            }
+
+            if (!lat || !lon) {
+                lat = currentStation.lat;
+                lon = currentStation.lon;
             }
 
             if (!lat || !lon) {
@@ -1357,6 +1460,7 @@
             generateSyntheticHistory(rawLastStationData);
             updateUI(rawLastStationData);
             generateInterlachenFallbackForecast(78.2);
+            checkNwsAlerts();
         }
 
         function generateSyntheticHistory(base) {
