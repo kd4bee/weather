@@ -160,13 +160,16 @@
         </div>
 
         <!-- DEDICATED NWS SEVERE WEATHER ALERT PANE (Appears only when active) -->
-        <div id="nwsAlertPane" class="hidden glass-card rounded-2xl p-2.5 bg-red-950/40 border border-red-500/40 shadow-lg relative overflow-hidden">
-            <a id="nwsAlertLink" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-red-200 hover:text-white transition group">
-                <div class="w-7 h-7 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400 shrink-0 border border-red-500/40 animate-pulse">
+        <div id="nwsAlertPane" class="hidden glass-card rounded-2xl p-2.5 bg-red-950/50 border border-red-500/50 shadow-lg relative overflow-hidden">
+            <button type="button" onclick="openNwsAlertModal(0)" class="w-full text-left flex items-center gap-2 text-red-200 hover:text-white transition group cursor-pointer">
+                <div class="w-7 h-7 rounded-xl bg-red-500/25 flex items-center justify-center text-red-400 shrink-0 border border-red-500/40 animate-pulse">
                     <i class="fa-solid fa-triangle-exclamation text-xs"></i>
                 </div>
                 <div class="min-w-0 flex-1 overflow-hidden">
-                    <div class="text-[9px] uppercase font-black text-red-400 tracking-wider">Active NWS Weather Alert • Tap for Details</div>
+                    <div class="flex items-center justify-between gap-1">
+                        <span class="text-[9px] uppercase font-black text-red-400 tracking-wider" id="nwsAlertBannerLabel">Active NWS Weather Alert • Tap for Details</span>
+                        <span id="nwsAlertCountBadge" class="hidden text-[9px] font-black bg-red-500 text-white px-1.5 py-0.2 rounded-full">1</span>
+                    </div>
                     <!-- Scrolling marquee effect container -->
                     <div class="w-full overflow-hidden whitespace-nowrap">
                         <marquee scrollamount="4" class="text-xs font-bold text-red-200 block">
@@ -177,7 +180,7 @@
                 <div class="text-[10px] text-red-400 font-bold shrink-0 pl-1 group-hover:translate-x-0.5 transition">
                     &rarr;
                 </div>
-            </a>
+            </button>
         </div>
 
         <!-- OUTDOOR TEMPERATURE, HUMIDITY & STATS CARD -->
@@ -270,23 +273,16 @@
                 <!-- Mini 360-Degree Compass Rose Graphic -->
                 <div class="w-12 h-12 shrink-0 flex items-center justify-center relative" title="360° Wind Rose & Historical Distribution">
                     <svg viewBox="0 0 64 64" class="w-full h-full overflow-visible">
-                        <!-- Outer Compass Ring -->
                         <circle cx="32" cy="32" r="27" fill="rgba(14, 165, 233, 0.08)" stroke="rgba(56, 189, 248, 0.35)" stroke-width="1.2" />
                         <circle cx="32" cy="32" r="16" fill="none" stroke="rgba(148, 163, 184, 0.2)" stroke-width="0.8" stroke-dasharray="2 2" />
-                        <!-- Cardinal Letters -->
                         <text x="32" y="10" text-anchor="middle" font-size="6.5" font-weight="bold" fill="#38bdf8">N</text>
                         <text x="55" y="34" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">E</text>
                         <text x="32" y="59" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">S</text>
                         <text x="9" y="34" text-anchor="middle" font-size="6" font-weight="bold" fill="#94a3b8">W</text>
-                        <!-- Historical Wind Distribution Spokes (Populated dynamically) -->
                         <g id="windRoseHistoryGroup"></g>
-                        <!-- Current Wind Direction Pointer (Points toward where wind is blowing FROM) -->
                         <g id="windRoseNeedle" transform="rotate(0 32 32)" style="transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);">
-                            <!-- Tail line across center -->
                             <line x1="32" y1="11" x2="32" y2="46" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" />
-                            <!-- Arrowhead at outer edge pointing to origin -->
                             <polygon points="32,6 27.5,15 32,13 36.5,15" fill="#38bdf8" />
-                            <!-- Center pivot dot -->
                             <circle cx="32" cy="32" r="2.5" fill="#f8fafc" stroke="#0284c7" stroke-width="1.2" />
                         </g>
                     </svg>
@@ -324,8 +320,8 @@
                 </div>
                 <div class="min-w-0">
                     <div class="text-[9px] uppercase font-bold text-slate-400">Rainfall</div>
-                    <div class="text-base font-bold text-white truncate"><span id="rainHourlyDisplay">--</span> <span class="text-[10px] font-normal text-slate-400" id="rainUnitLabel">in/h</span></div>
-                    <div class="text-[9px] text-slate-400 truncate">Day: <span id="rainDayDisplay">--</span></div>
+                    <div class="text-base font-bold text-white truncate"><span id="rainDayDisplay">--</span></div>
+                    <div class="text-[9px] text-slate-400 truncate">Rate: <span id="rainHourlyDisplay">--</span> <span id="rainUnitLabel">in/h</span></div>
                 </div>
             </div>
         </div>
@@ -356,17 +352,82 @@
 
     </div>
 
-    <!-- CUSTOM TOAST MESSAGE BANNER (Replaces alert() cleanly) -->
+    <!-- CUSTOM TOAST MESSAGE BANNER -->
     <div id="toastBanner" class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] hidden max-w-[360px] w-[92%] glass-panel border border-sky-400/50 text-sky-100 text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center justify-between gap-2">
         <span id="toastMessage">Notification</span>
         <button onclick="hideToast()" class="text-slate-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
     </div>
 
-    <!-- ANIMATED DOPPLER RADAR MODAL (Full-Screen Mobile-Friendly) -->
+    <!-- NWS WEATHER ALERT FULL EXPLANATION MODAL -->
+    <div id="nwsAlertModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 hidden">
+        <div class="glass-panel w-full max-w-[420px] max-h-[90vh] rounded-3xl p-4 sm:p-5 flex flex-col gap-3 border border-red-500/40 shadow-2xl relative">
+            
+            <div class="flex items-start justify-between gap-2 border-b border-red-500/30 pb-2.5 shrink-0">
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-500/25 text-red-300 border border-red-500/40" id="alertModalSeverity">WARNING</span>
+                        <span class="text-[10px] text-slate-400 font-semibold" id="alertModalSender">National Weather Service</span>
+                    </div>
+                    <h3 class="font-black text-base text-red-300 mt-1 leading-snug" id="alertModalEvent">Active Weather Alert</h3>
+                </div>
+                <button onclick="closeNwsAlertModal()" class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:text-white border border-slate-700 shrink-0 cursor-pointer" title="Close Alert">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <div id="alertTabsContainer" class="hidden flex items-center gap-1.5 overflow-x-auto pb-1 shrink-0"></div>
+
+            <div class="flex-1 overflow-y-auto flex flex-col gap-3 pr-1 text-xs">
+                <div class="bg-red-950/40 border border-red-500/30 rounded-2xl p-3 text-red-100 font-bold leading-snug" id="alertModalHeadline">--</div>
+
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/70">
+                        <div class="text-[9px] uppercase font-bold text-slate-400">Effective / Onset</div>
+                        <div class="font-semibold text-slate-200 mt-0.5" id="alertModalEffective">--</div>
+                    </div>
+                    <div class="bg-slate-800/60 p-2.5 rounded-xl border border-slate-700/70">
+                        <div class="text-[9px] uppercase font-bold text-red-400">Expires / Ends</div>
+                        <div class="font-semibold text-red-200 mt-0.5" id="alertModalExpires">--</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/70">
+                    <div class="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1">
+                        <i class="fa-solid fa-location-dot text-red-400"></i> Affected Areas
+                    </div>
+                    <div class="text-[11px] text-slate-200 mt-1 leading-relaxed" id="alertModalAreas">--</div>
+                </div>
+
+                <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-700/80">
+                    <div class="text-[10px] uppercase font-black text-sky-400 tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-info"></i> Official NWS Explanation &amp; Impacts
+                    </div>
+                    <div class="text-slate-200 whitespace-pre-line leading-relaxed text-[11.5px]" id="alertModalDescription">--</div>
+                </div>
+
+                <div id="alertModalInstructionBox" class="bg-amber-950/35 p-3 rounded-2xl border border-amber-500/40">
+                    <div class="text-[10px] uppercase font-black text-amber-400 tracking-wider mb-1.5 flex items-center gap-1.5">
+                        <i class="fa-solid fa-shield-halved"></i> Precautionary / Preparedness Actions
+                    </div>
+                    <div class="text-amber-100 whitespace-pre-line leading-relaxed text-[11.5px]" id="alertModalInstruction">--</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 shrink-0 pt-1 border-t border-slate-700/60">
+                <a id="alertModalExternalLink" href="https://www.weather.gov/" target="_blank" rel="noopener noreferrer" class="py-2 px-3 rounded-xl bg-red-500/20 hover:bg-red-500/30 active:scale-95 text-red-200 font-semibold text-xs border border-red-400/40 flex items-center justify-center gap-1.5 transition cursor-pointer text-center">
+                    <i class="fa-solid fa-up-right-from-square text-[11px]"></i> NWS Point Page
+                </a>
+                <button onclick="closeNwsAlertModal()" class="py-2 px-3 rounded-xl bg-sky-600/80 hover:bg-sky-600 active:scale-95 text-white font-semibold text-xs border border-sky-400/40 cursor-pointer transition">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANIMATED DOPPLER RADAR MODAL -->
     <div id="radarModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 hidden">
         <div class="glass-panel w-full max-w-[420px] h-[88vh] max-h-[760px] rounded-3xl p-4 flex flex-col gap-2.5 border border-emerald-500/30 shadow-2xl relative">
             
-            <!-- Modal Header -->
             <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 shrink-0">
                 <div>
                     <h3 class="font-bold text-sm text-emerald-300 flex items-center gap-1.5">
@@ -380,7 +441,6 @@
                 </button>
             </div>
 
-            <!-- Quick Station / Area Preset Bar -->
             <div class="flex items-center justify-between gap-1.5 bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/70 shrink-0 text-[10px]">
                 <span class="text-slate-400 font-semibold px-1"><i class="fa-solid fa-location-dot text-emerald-400 mr-1"></i>Center:</span>
                 <div class="flex items-center gap-1">
@@ -393,7 +453,6 @@
                 </div>
             </div>
 
-            <!-- Interactive Animated Doppler Radar Iframe Container -->
             <div class="relative flex-1 w-full rounded-2xl overflow-hidden border border-slate-700/80 bg-slate-950">
                 <div id="radarLoadingOverlay" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 text-slate-300 text-xs gap-2 pointer-events-none z-10 transition-opacity duration-300">
                     <i class="fa-solid fa-radar fa-spin text-2xl text-emerald-400"></i>
@@ -410,7 +469,6 @@
                 </iframe>
             </div>
 
-            <!-- Bottom Actions: Open External Window & Close -->
             <div class="grid grid-cols-2 gap-2 shrink-0 pt-0.5">
                 <a id="externalRadarLink" href="https://embed.windy.com/embed2.html?lat=29.6236&lon=-81.8898&detailLat=29.6236&detailLon=-81.8898&width=650&height=450&zoom=9&level=surface&overlay=radar&product=radar&menu=&message=true&marker=true&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=mph&metricTemp=%C2%B0F&radarRange=-1" target="_blank" rel="noopener noreferrer" onclick="openExternalRadarWindow(event)" class="py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 active:scale-95 text-emerald-300 font-semibold text-xs border border-emerald-400/40 flex items-center justify-center gap-1.5 transition cursor-pointer text-center">
                     <i class="fa-solid fa-up-right-from-square text-[11px]"></i> Open External Window
@@ -438,7 +496,6 @@
                 </button>
             </div>
 
-            <!-- Modal Quick Summary Cards -->
             <div class="grid grid-cols-3 gap-2 text-center" id="modalStatsGrid">
                 <div class="bg-slate-800/60 p-2 rounded-xl border border-slate-700">
                     <div class="text-[9px] uppercase text-slate-400" id="statLabel1">High / Max</div>
@@ -454,15 +511,12 @@
                 </div>
             </div>
 
-            <!-- Chart Container -->
             <div class="w-full h-48 bg-slate-900/80 rounded-xl p-2 border border-slate-800" id="chartWrapper">
                 <canvas id="historyChart"></canvas>
             </div>
 
-            <!-- Forecast Detailed Text Description Container -->
             <div class="hidden bg-slate-800/40 p-3 rounded-xl border border-slate-700/60 text-xs text-slate-200 leading-relaxed" id="forecastDetailText"></div>
 
-            <!-- History Raw Data List (Scrollable logs) -->
             <div class="flex flex-col gap-1" id="recentReadingsGroup">
                 <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider" id="readingsLogTitle">Readings Log (12 Hours)</div>
                 <div class="max-h-40 overflow-y-auto flex flex-col gap-1 text-[11px]" id="modalDataList"></div>
@@ -486,7 +540,6 @@
                 </button>
             </div>
 
-            <!-- Theme Selector (Dark / Light / Auto Sunset-Sunrise) -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] font-bold text-slate-400 uppercase">Display Theme</label>
                 <div class="grid grid-cols-3 gap-1.5 bg-slate-800/60 p-1 rounded-xl border border-slate-700">
@@ -502,7 +555,6 @@
                 </div>
             </div>
 
-            <!-- Mode Switcher -->
             <div class="flex flex-col gap-1">
                 <label class="text-[10px] font-bold text-slate-400 uppercase">Data Mode</label>
                 <div class="grid grid-cols-2 gap-2 bg-slate-800/60 p-1 rounded-xl border border-slate-700">
@@ -511,7 +563,6 @@
                 </div>
             </div>
 
-            <!-- Station Manager Section -->
             <div class="flex flex-col gap-2 bg-slate-800/50 p-3 rounded-2xl border border-slate-700">
                 <div class="flex items-center justify-between">
                     <label class="text-[10px] font-bold text-sky-400 uppercase">Weather Station Manager</label>
@@ -521,9 +572,7 @@
                 </div>
                 <div>
                     <label class="text-[9px] font-bold text-slate-400 uppercase">Select Active Station</label>
-                    <select id="settingStationSelect" onchange="onStationDropdownChange()" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
-                        <!-- Populated dynamically -->
-                    </select>
+                    <select id="settingStationSelect" onchange="onStationDropdownChange()" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1"></select>
                 </div>
                 <div>
                     <label class="text-[9px] font-bold text-slate-400 uppercase">Station Name</label>
@@ -534,16 +583,16 @@
                     <input type="text" id="settingStationLocation" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="e.g. Interlachen, FL">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">Device MAC Address (Optional)</label>
-                    <input type="text" id="settingMacAddress" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Device MAC Address</label>
+                    <input type="text" id="settingMacAddress" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="e.g. 8C:4F:00:4F:35:B2">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">Ambient API Key (Optional)</label>
-                    <input type="text" id="settingApiKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Ambient API Key</label>
+                    <input type="text" id="settingApiKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Ambient Weather API Key">
                 </div>
                 <div>
-                    <label class="text-[9px] font-bold text-slate-400 uppercase">Application Key (Optional)</label>
-                    <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Leave blank if using location mode">
+                    <label class="text-[9px] font-bold text-slate-400 uppercase">Application Key</label>
+                    <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Ambient Weather Application Key">
                 </div>
                 <div class="flex justify-between items-center pt-1">
                     <button type="button" onclick="testDisplayElements()" class="text-[10px] text-emerald-400 hover:text-emerald-300 transition cursor-pointer flex items-center gap-1">
@@ -555,7 +604,6 @@
                 </div>
             </div>
 
-            <!-- Units Config -->
             <div class="grid grid-cols-2 gap-2">
                 <div>
                     <label class="text-[10px] font-bold text-slate-400 uppercase">Temp Unit</label>
@@ -593,7 +641,6 @@
                 </div>
             </div>
 
-            <!-- Refresh Rate -->
             <div>
                 <label class="text-[10px] font-bold text-slate-400 uppercase">Refresh Interval</label>
                 <select id="settingRefreshInterval" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-xs text-white focus:outline-none focus:border-sky-400 mt-1">
@@ -647,7 +694,7 @@
             stations: DEFAULT_STATIONS,
             activeStationIndex: 0,
             isLiveMode: true,
-            themeMode: "dark", // 'dark', 'light', 'auto'
+            themeMode: "dark",
             tempUnit: "F",
             pressUnit: "hPa",
             windUnit: "mph",
@@ -666,13 +713,11 @@
         let activeChart = null;
         let recentHistoryData = [];
         let forecastDaysData = [];
+        let activeNwsAlerts = [];
         let refreshTimer = null;
         let rawLastStationData = null;
         let toastTimeout = null;
 
-        // =========================================================================
-        // NON-BLOCKING UI TOAST NOTIFICATION HELPER (Never uses alert())
-        // =========================================================================
         function showToast(msg, duration = 3500) {
             const banner = document.getElementById('toastBanner');
             const msgEl = document.getElementById('toastMessage');
@@ -695,17 +740,10 @@
             if (el) el.innerText = val;
         }
 
-        // =========================================================================
-        // MAC ADDRESS NORMALIZATION & FORMATTING HELPERS
-        // =========================================================================
         function normalizeMacHex(mac) {
             return (mac || '').replace(/[^a-fA-F0-9]/g, '').toUpperCase();
         }
 
-        /**
-         * Formats any MAC address string into uppercase colon-separated format
-         * required by Ambient Weather's `/v1/devices/:macAddress` endpoint (e.g. 8C:4F:00:4F:35:B2).
-         */
         function formatAmbientMac(mac) {
             const clean = normalizeMacHex(mac);
             if (clean.length === 12) {
@@ -714,30 +752,22 @@
             return (mac || '').trim().toUpperCase();
         }
 
-        // =========================================================================
-        // ROBUST TELEMETRY EXTRACTORS (Prevents 0°F / 32°F Freezing Artifacts)
-        // =========================================================================
         function isValidFiniteNumber(val) {
             if (val === undefined || val === null || val === '') return false;
             const num = Number(val);
             return Number.isFinite(num);
         }
 
-        /**
-         * Extracts outdoor temperature in Fahrenheit from an Ambient Weather record.
-         * Explicitly prioritizes `tempf` first and rejects undefined, null, or out-of-range
-         * sensor dropout values so missing records are never coerced into 0°F / 32°F.
-         */
+        // =========================================================================
+        // STATION TELEMETRY EXTRACTORS (ALL SENSORS FROM AMBIENT STATION PACKET)
+        // =========================================================================
         function getOutdoorTemp(d) {
             if (!d || typeof d !== 'object') return undefined;
             const candidates = [d.tempf, d.temp, d.outdoorTemp, d.temp1f];
             for (const raw of candidates) {
                 if (isValidFiniteNumber(raw)) {
                     const num = Number(raw);
-                    // Reject physically impossible sensor dropouts (e.g. -999 or > 150°F)
-                    if (num > -60 && num < 155) {
-                        return num;
-                    }
+                    if (num > -60 && num < 155) return num;
                 }
             }
             return undefined;
@@ -745,7 +775,7 @@
 
         function getFeelsLike(d) {
             if (!d || typeof d !== 'object') return undefined;
-            const candidates = [d.feelsLike, d.feelsLikef, d.feelslike, getOutdoorTemp(d)];
+            const candidates = [d.feelsLike, d.feelsLikef, d.feelslike, d.heatindex, d.windchill, getOutdoorTemp(d)];
             for (const raw of candidates) {
                 if (isValidFiniteNumber(raw)) {
                     const num = Number(raw);
@@ -755,17 +785,140 @@
             return undefined;
         }
 
-        function getDailyRain(d) {
+        function getOutdoorHumidity(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.humidity, d.humidity1, d.outHumidity];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    if (num >= 0 && num <= 100) return num;
+                }
+            }
+            return undefined;
+        }
+
+        function getIndoorTemp(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.tempinf, d.tempin, d.indoorTemp];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    if (num > -20 && num < 140) return num;
+                }
+            }
+            return undefined;
+        }
+
+        function getIndoorHumidity(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.humidityin, d.humidityIn, d.inHumidity];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    if (num >= 0 && num <= 100) return num;
+                }
+            }
+            return undefined;
+        }
+
+        function getWindSpeed(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.windspeedmph, d.windspdmph_avg10m, d.windspdmph_avg2m, d.windspeed];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw) && Number(raw) >= 0) return Number(raw);
+            }
+            return undefined;
+        }
+
+        function getWindGust(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.windgustmph, d.maxdailygust, d.windgust];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw) && Number(raw) >= 0) return Number(raw);
+            }
+            return undefined;
+        }
+
+        function getWindDir(d) {
             if (!d || typeof d !== 'object') return 0;
-            const val = d.dailyrainin ?? d.eventrainin ?? d.rainin ?? 0;
-            return isValidFiniteNumber(val) ? Number(val) : 0;
+            const candidates = [d.winddir, d.winddir_avg10m, d.winddir_avg2m];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) return ((Number(raw) % 360) + 360) % 360;
+            }
+            return 0;
+        }
+
+        function getSolarRadiation(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.solarradiation, d.solar, d.light];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw) && Number(raw) >= 0) return Number(raw);
+            }
+            return undefined;
+        }
+
+        function getUvIndex(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.uv, d.uvi, d.solaruv];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw) && Number(raw) >= 0) return Number(raw);
+            }
+            return undefined;
+        }
+
+        function getBarometerInHg(d) {
+            if (!d || typeof d !== 'object') return undefined;
+            const candidates = [d.baromrelin, d.baromabsin, d.barometer];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw)) {
+                    const num = Number(raw);
+                    if (num > 20 && num < 35) return num;
+                }
+            }
+            return undefined;
+        }
+
+        function getHourlyRain(d) {
+            if (!d || typeof d !== 'object') return 0;
+            const candidates = [d.hourlyrainin, d.rainin, d.rainratein];
+            for (const raw of candidates) {
+                if (isValidFiniteNumber(raw) && Number(raw) >= 0) return Number(raw);
+            }
+            return 0;
         }
 
         /**
-         * Generic fetch helper with CORS proxy fallback chain for Ambient Weather REST API.
+         * Extracts accurate daily rain (in inches) from Ambient Weather telemetry or
+         * falls back to the latest valid daily/event accumulation in recent history.
          */
+        function getDailyRain(d) {
+            const sources = [d];
+            if (Array.isArray(recentHistoryData) && recentHistoryData.length > 0) {
+                for (let i = recentHistoryData.length - 1; i >= Math.max(0, recentHistoryData.length - 12); i--) {
+                    sources.push(recentHistoryData[i]);
+                }
+            }
+
+            for (const src of sources) {
+                if (!src || typeof src !== 'object') continue;
+                if (isValidFiniteNumber(src.dailyrainin) && Number(src.dailyrainin) >= 0) {
+                    const dailyVal = Number(src.dailyrainin);
+                    if (dailyVal === 0 && isValidFiniteNumber(src.eventrainin) && Number(src.eventrainin) > 0) {
+                        return Number(src.eventrainin);
+                    }
+                    return dailyVal;
+                }
+                if (isValidFiniteNumber(src.eventrainin) && Number(src.eventrainin) >= 0) {
+                    return Number(src.eventrainin);
+                }
+                if (isValidFiniteNumber(src.totalrainin) && Number(src.totalrainin) >= 0) {
+                    return Number(src.totalrainin);
+                }
+            }
+            return 0;
+        }
+
         async function fetchAmbientEndpoint(targetUrl) {
-            // 1. Direct fetch attempt
             try {
                 const directRes = await fetch(targetUrl);
                 if (directRes.ok) {
@@ -775,7 +928,6 @@
                 console.log('[KD4BEE WX] Direct fetch blocked/unavailable, trying proxy fallback...');
             }
 
-            // 2. AllOrigins proxy fallback
             try {
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
                 const proxyRes = await fetch(proxyUrl);
@@ -791,7 +943,6 @@
                 console.warn('[KD4BEE WX] Primary proxy failed:', proxyErr);
             }
 
-            // 3. Secondary CORS proxy fallback (corsproxy.io)
             try {
                 const altProxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
                 const altRes = await fetch(altProxyUrl);
@@ -826,7 +977,6 @@
                 try {
                     const parsed = JSON.parse(saved);
                     if (parsed.stations && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
-                        // Ensure built-in stations preserve valid MAC/keys/coords if user hasn't customized them
                         parsed.stations = parsed.stations.map(st => {
                             const defaultMatch = DEFAULT_STATIONS.find(def => def.name === st.name);
                             if (defaultMatch) {
@@ -961,28 +1111,20 @@
             const configuredMacHex = normalizeMacHex(configuredMacRaw);
             const formattedConfiguredMac = formatAmbientMac(configuredMacRaw);
 
-            console.log(`[KD4BEE WX] Fetching devices for station "${currentStation.name}" (MAC: ${formattedConfiguredMac || 'None'})`);
-
             const devicesUrl = `https://rt.ambientweather.net/v1/devices?applicationKey=${encodeURIComponent(appKey)}&apiKey=${encodeURIComponent(apiKey)}`;
             const data = await fetchAmbientEndpoint(devicesUrl);
 
             if (data && Array.isArray(data) && data.length > 0) {
                 let matchedDevice = null;
 
-                // 1. Strict MAC address match (comparing normalized 12-char hex strings)
                 if (configuredMacHex.length > 0) {
                     matchedDevice = data.find(dev => {
                         const rawMac = dev.macAddress || dev.mac || dev.info?.mac || "";
                         const devMacHex = normalizeMacHex(rawMac);
                         return devMacHex === configuredMacHex;
                     });
-
-                    if (!matchedDevice) {
-                        console.warn(`[KD4BEE WX] Exact MAC match not found in /v1/devices list for ${formattedConfiguredMac}. Returned MACs:`, data.map(d => d.macAddress || d.mac));
-                    }
                 }
                 
-                // 2. Match by station name only if no MAC was configured
                 if (!matchedDevice && configuredMacHex.length === 0 && currentStation.name) {
                     matchedDevice = data.find(dev => {
                         const devName = (dev.info?.name || dev.name || "").trim().toLowerCase();
@@ -990,12 +1132,10 @@
                     });
                 }
 
-                // 3. Fallback to first device only when no MAC address was specified
                 if (!matchedDevice && configuredMacHex.length === 0) {
                     matchedDevice = data[0];
                 }
 
-                // Determine the authoritative colon-separated uppercase MAC for direct history endpoint
                 const resolvedMac = matchedDevice
                     ? formatAmbientMac(matchedDevice.macAddress || matchedDevice.mac || matchedDevice.info?.mac || formattedConfiguredMac)
                     : formattedConfiguredMac;
@@ -1004,28 +1144,23 @@
                     throw new Error("Unable to resolve valid MAC address for station");
                 }
 
-                console.log(`[KD4BEE WX] Resolved target MAC for history API: ${resolvedMac}`);
-
-                // Fetch direct device history from Ambient Weather `/v1/devices/:macAddress`
                 let histData = null;
                 try {
                     const histUrl = `https://rt.ambientweather.net/v1/devices/${encodeURIComponent(resolvedMac)}?applicationKey=${encodeURIComponent(appKey)}&apiKey=${encodeURIComponent(apiKey)}&limit=72`;
                     const rawHist = await fetchAmbientEndpoint(histUrl);
                     if (Array.isArray(rawHist) && rawHist.length > 0) {
                         histData = rawHist;
-                        console.log(`[KD4BEE WX] Retrieved ${histData.length} historical records for ${resolvedMac}`);
                     }
                 } catch (hErr) {
                     console.warn(`[KD4BEE WX] Direct device history endpoint failed for ${resolvedMac}:`, hErr);
                 }
 
-                // Establish latest telemetry record (`lastData` from matchedDevice or newest record from histData)
                 const latestTelemetry = (matchedDevice && matchedDevice.lastData)
                     ? matchedDevice.lastData
                     : (Array.isArray(histData) && histData.length > 0 ? histData[0] : null);
 
                 if (latestTelemetry) {
-                    rawLastStationData = latestTelemetry;
+                    rawLastStationData = { ...latestTelemetry };
                     if (matchedDevice?.info?.coords) {
                         rawLastStationData._coords = matchedDevice.info.coords;
                     } else if (latestTelemetry.coords) {
@@ -1040,6 +1175,23 @@
                         generateSyntheticHistory(rawLastStationData);
                     }
 
+                    if (recentHistoryData.length > 0) {
+                        const newestHist = recentHistoryData[recentHistoryData.length - 1];
+                        const sensorKeys = [
+                            'tempf', 'humidity', 'feelsLike', 'dewPoint',
+                            'tempinf', 'humidityin',
+                            'windspeedmph', 'windgustmph', 'maxdailygust', 'winddir',
+                            'solarradiation', 'uv',
+                            'baromrelin', 'baromabsin',
+                            'hourlyrainin', 'rainin', 'dailyrainin', 'eventrainin', 'totalrainin'
+                        ];
+                        sensorKeys.forEach(k => {
+                            if (!isValidFiniteNumber(rawLastStationData[k]) && isValidFiniteNumber(newestHist[k])) {
+                                rawLastStationData[k] = newestHist[k];
+                            }
+                        });
+                    }
+
                     updateUI(rawLastStationData);
                     await fetchDynamicNWSForecast();
                     await checkNwsAlerts();
@@ -1051,10 +1203,10 @@
             }
         }
 
-        /**
-         * Checks for active NWS alerts for the active station's coordinates and builds a valid NWS details URL
-         */
-        async function checkNwsAlerts() {
+        // =========================================================================
+        // NWS ALERTS API INTEGRATION & IN-APP ALERT EXPLANATION VIEWER
+        // =========================================================================
+        function resolveStationCoordinates() {
             const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
             let lat = null;
             let lon = null;
@@ -1069,50 +1221,93 @@
                 lon = Number(currentStation.lon);
             }
 
-            const alertPane = document.getElementById('nwsAlertPane');
-            const alertLink = document.getElementById('nwsAlertLink');
-            const alertTitle = document.getElementById('nwsAlertTitle');
+            return { lat, lon };
+        }
 
-            if (!alertPane || !alertLink || !alertTitle) return;
+        function formatNwsTimestamp(isoStr) {
+            if (!isoStr) return "Until further notice";
+            try {
+                const dt = new Date(isoStr);
+                if (isNaN(dt.getTime())) return isoStr;
+                return dt.toLocaleString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                });
+            } catch (e) {
+                return isoStr;
+            }
+        }
+
+        async function checkNwsAlerts() {
+            const { lat, lon } = resolveStationCoordinates();
+            const alertPane = document.getElementById('nwsAlertPane');
+            const alertTitle = document.getElementById('nwsAlertTitle');
+            const alertCountBadge = document.getElementById('nwsAlertCountBadge');
+            const alertBannerLabel = document.getElementById('nwsAlertBannerLabel');
+
+            if (!alertPane || !alertTitle) return;
 
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                activeNwsAlerts = [];
                 alertPane.classList.add('hidden');
                 return;
             }
 
             try {
-                const res = await fetch(`https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`);
+                const res = await fetch(
+                    `https://api.weather.gov/alerts/active?point=${lat.toFixed(4)},${lon.toFixed(4)}`,
+                    { headers: { 'Accept': 'application/geo+json' } }
+                );
+
                 if (res.ok) {
                     const data = await res.json();
                     if (data && Array.isArray(data.features) && data.features.length > 0) {
-                        const activeAlert = data.features[0];
-                        const props = activeAlert.properties || {};
-                        const headline = props.headline || props.event || "Severe Weather Warning Issued";
-                        const eventName = props.event || "Warning";
+                        activeNwsAlerts = data.features.map(f => {
+                            const p = f.properties || {};
+                            return {
+                                id: p.id || f.id || "",
+                                event: p.event || "Weather Alert",
+                                severity: p.severity || "Advisory",
+                                certainty: p.certainty || "",
+                                urgency: p.urgency || "",
+                                senderName: p.senderName || "National Weather Service",
+                                headline: p.headline || p.event || "Active Weather Alert",
+                                description: p.description || "No detailed description provided by the National Weather Service.",
+                                instruction: p.instruction || "",
+                                areaDesc: p.areaDesc || "Local Forecast Area",
+                                effective: p.onset || p.effective || p.sent || "",
+                                expires: p.ends || p.expires || "",
+                                lat,
+                                lon
+                            };
+                        });
 
-                        // Extract NWS UGC codes (Forecast Zone like FLZ137 & County like FLC107)
-                        const ugcList = (props.geocode && Array.isArray(props.geocode.UGC)) ? props.geocode.UGC : [];
-                        const warnZone = ugcList.find(code => /^[A-Z]{2}Z\d{3}$/.test(code)) || "";
-                        const warnCounty = ugcList.find(code => /^[A-Z]{2}C\d{3}$/.test(code)) || "";
+                        const primary = activeNwsAlerts[0];
+                        const combinedMarquee = activeNwsAlerts.length > 1
+                            ? activeNwsAlerts.map(a => `${a.event}: ${a.headline}`).join('   •••   ')
+                            : primary.headline;
 
-                        let detailsUrl;
-                        if (warnZone || warnCounty) {
-                            const params = new URLSearchParams({
-                                warnzone: warnZone,
-                                warncounty: warnCounty,
-                                firewxzone: warnZone,
-                                local_place1: currentStation.location || 'Current Location',
-                                product1: eventName,
-                                lat: lat.toFixed(4),
-                                lon: lon.toFixed(4)
-                            });
-                            detailsUrl = `https://forecast.weather.gov/showsigwx.php?${params.toString()}`;
-                        } else {
-                            detailsUrl = `https://forecast.weather.gov/MapClick.php?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`;
+                        alertTitle.innerText = combinedMarquee;
+
+                        if (alertBannerLabel) {
+                            alertBannerLabel.innerText = activeNwsAlerts.length > 1
+                                ? `${activeNwsAlerts.length} Active NWS Alerts • Tap for Full Details`
+                                : `Active NWS ${primary.event} • Tap for Details`;
                         }
 
-                        alertTitle.innerText = headline;
-                        alertLink.href = detailsUrl;
+                        if (alertCountBadge) {
+                            if (activeNwsAlerts.length > 1) {
+                                alertCountBadge.innerText = `${activeNwsAlerts.length} ALERTS`;
+                                alertCountBadge.classList.remove('hidden');
+                            } else {
+                                alertCountBadge.classList.add('hidden');
+                            }
+                        }
+
                         alertPane.classList.remove('hidden');
                         return;
                     }
@@ -1121,49 +1316,104 @@
                 console.warn("[KD4BEE WX] NWS alerts fetch encountered an issue:", err);
             }
 
-            // Hide alert pane if no active warnings
+            activeNwsAlerts = [];
             alertPane.classList.add('hidden');
         }
 
-        /**
-         * Sorts raw Ambient Weather history records chronologically using `dateutc` (epoch ms)
-         * or ISO `date`, and filters out corrupted/empty records that could cause 0°F spikes.
-         */
+        function openNwsAlertModal(alertIndex = 0) {
+            if (!activeNwsAlerts || activeNwsAlerts.length === 0) {
+                showToast("No active NWS weather alerts to display.");
+                return;
+            }
+
+            const idx = Math.max(0, Math.min(alertIndex, activeNwsAlerts.length - 1));
+            const alert = activeNwsAlerts[idx];
+
+            const tabsContainer = document.getElementById('alertTabsContainer');
+            if (tabsContainer) {
+                if (activeNwsAlerts.length > 1) {
+                    tabsContainer.classList.remove('hidden');
+                    tabsContainer.innerHTML = "";
+                    activeNwsAlerts.forEach((item, i) => {
+                        const btn = document.createElement('button');
+                        btn.type = "button";
+                        btn.onclick = () => openNwsAlertModal(i);
+                        btn.className = i === idx
+                            ? "px-2.5 py-1 rounded-xl text-[10px] font-bold bg-red-500 text-white shrink-0 cursor-pointer transition"
+                            : "px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-800/80 text-slate-300 hover:text-white border border-slate-700 shrink-0 cursor-pointer transition";
+                        btn.innerText = `${i + 1}. ${item.event}`;
+                        tabsContainer.appendChild(btn);
+                    });
+                } else {
+                    tabsContainer.classList.add('hidden');
+                }
+            }
+
+            const badgeText = [alert.severity, alert.urgency].filter(Boolean).join(' • ').toUpperCase() || 'ACTIVE ALERT';
+            safeSetText('alertModalSeverity', badgeText);
+            safeSetText('alertModalSender', alert.senderName);
+            safeSetText('alertModalEvent', alert.event);
+            safeSetText('alertModalHeadline', alert.headline);
+            safeSetText('alertModalEffective', formatNwsTimestamp(alert.effective));
+            safeSetText('alertModalExpires', formatNwsTimestamp(alert.expires));
+            safeSetText('alertModalAreas', alert.areaDesc);
+            safeSetText('alertModalDescription', alert.description.trim());
+
+            const instrBox = document.getElementById('alertModalInstructionBox');
+            if (instrBox) {
+                if (alert.instruction && alert.instruction.trim().length > 0) {
+                    instrBox.classList.remove('hidden');
+                    safeSetText('alertModalInstruction', alert.instruction.trim());
+                } else {
+                    instrBox.classList.add('hidden');
+                }
+            }
+
+            const extLink = document.getElementById('alertModalExternalLink');
+            if (extLink && Number.isFinite(alert.lat) && Number.isFinite(alert.lon)) {
+                extLink.href = `https://forecast.weather.gov/MapClick.php?lat=${alert.lat.toFixed(4)}&lon=${alert.lon.toFixed(4)}`;
+            }
+
+            const modal = document.getElementById('nwsAlertModal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeNwsAlertModal() {
+            const modal = document.getElementById('nwsAlertModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
         function processRawHistory(rawArr) {
             if (!Array.isArray(rawArr)) {
                 recentHistoryData = [];
                 return;
             }
 
-            // Filter out non-object or timestamp-less entries
             const validEntries = rawArr.filter(item => {
                 if (!item || typeof item !== 'object') return false;
                 const ts = item.dateutc ?? item.date;
                 return ts !== undefined && ts !== null;
             });
 
-            // Sort oldest to newest
             validEntries.sort((a, b) => {
                 const tA = new Date(a.dateutc ?? a.date).getTime();
                 const tB = new Date(b.dateutc ?? b.date).getTime();
                 return tA - tB;
             });
 
-            // Filter out isolated zero-dropout temperature glitches (e.g., sudden 0°F when surrounding points are warm)
             const sanitized = validEntries.filter((item, idx, arr) => {
                 const t = getOutdoorTemp(item);
                 if (t === 0) {
                     const prevT = idx > 0 ? getOutdoorTemp(arr[idx - 1]) : undefined;
                     const nextT = idx < arr.length - 1 ? getOutdoorTemp(arr[idx + 1]) : undefined;
                     if ((prevT !== undefined && Math.abs(prevT) > 25) || (nextT !== undefined && Math.abs(nextT) > 25)) {
-                        return false; // Drop corrupted 0°F sensor packet
+                        return false;
                     }
                 }
                 return true;
             });
 
             recentHistoryData = sanitized.slice(-72);
-            console.log(`[KD4BEE WX] Processed ${recentHistoryData.length} valid chronological history records.`);
         }
 
         async function fetchLocationLiveWeather(locQuery) {
@@ -1268,20 +1518,9 @@
 
         async function fetchDynamicNWSForecast() {
             const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
-            let lat = null;
-            let lon = null;
+            let { lat, lon } = resolveStationCoordinates();
 
-            if (rawLastStationData && rawLastStationData._coords) {
-                lat = rawLastStationData._coords.lat || rawLastStationData._coords.latitude;
-                lon = rawLastStationData._coords.lon || rawLastStationData._coords.longitude;
-            }
-
-            if (!lat || !lon) {
-                lat = currentStation.lat;
-                lon = currentStation.lon;
-            }
-
-            if (!lat || !lon) {
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
                 const locQuery = currentStation.location || "Interlachen, FL";
                 try {
                     const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locQuery)}`);
@@ -1295,13 +1534,19 @@
                 } catch(e) {}
             }
 
-            if (lat && lon) {
+            if (Number.isFinite(lat) && Number.isFinite(lon)) {
                 try {
-                    const pointRes = await fetch(`https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`);
+                    const pointRes = await fetch(
+                        `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
+                        { headers: { 'Accept': 'application/geo+json' } }
+                    );
                     if (pointRes.ok) {
                         const pointData = await pointRes.json();
                         if (pointData && pointData.properties && pointData.properties.forecast) {
-                            const forecastRes = await fetch(pointData.properties.forecast);
+                            const forecastRes = await fetch(
+                                pointData.properties.forecast,
+                                { headers: { 'Accept': 'application/geo+json' } }
+                            );
                             if (forecastRes.ok) {
                                 const forecastData = await forecastRes.json();
                                 if (forecastData && forecastData.properties && forecastData.properties.periods) {
@@ -1467,7 +1712,7 @@
             recentHistoryData = [];
             const now = Date.now();
             const baseOutdoor = getOutdoorTemp(base) ?? 78.2;
-            const baseDir = base.winddir ?? 135;
+            const baseDir = getWindDir(base);
 
             for (let i = 72; i >= 0; i--) {
                 const time = new Date(now - i * 10 * 60 * 1000).toISOString();
@@ -1481,17 +1726,17 @@
                     temp: calcTemp,
                     tempf: calcTemp,
                     feelsLike: Number((calcTemp + 1.5).toFixed(1)),
-                    tempinf: Number(((base.tempinf ?? 72) + tempOffset * 0.3).toFixed(1)),
-                    humidityin: Math.min(100, Math.max(20, Math.round((base.humidityin ?? 48) + Math.sin(hoursAgo / 2) * 4))),
-                    windspeedmph: Math.max(0, Number(((base.windspeedmph ?? 6) + Math.cos(hoursAgo) * 3).toFixed(1))),
-                    windgustmph: Math.max(0, Number(((base.windgustmph ?? 10) + Math.cos(hoursAgo) * 4).toFixed(1))),
+                    tempinf: Number(((getIndoorTemp(base) ?? 72) + tempOffset * 0.3).toFixed(1)),
+                    humidityin: Math.min(100, Math.max(20, Math.round((getIndoorHumidity(base) ?? 48) + Math.sin(hoursAgo / 2) * 4))),
+                    windspeedmph: Math.max(0, Number(((getWindSpeed(base) ?? 6) + Math.cos(hoursAgo) * 3).toFixed(1))),
+                    windgustmph: Math.max(0, Number(((getWindGust(base) ?? 10) + Math.cos(hoursAgo) * 4).toFixed(1))),
                     winddir: calcDir,
-                    humidity: Math.min(100, Math.max(20, Math.round((base.humidity ?? 60) - tempOffset * 2))),
-                    baromrelin: Number(((base.baromrelin ?? 29.92) + Math.sin(hoursAgo/4) * 0.1).toFixed(2)),
-                    dailyrainin: 0.0,
-                    hourlyrainin: 0.0,
-                    solarradiation: Math.max(0, Number(((base.solarradiation ?? 500) + Math.sin(hoursAgo/2) * 300).toFixed(1))),
-                    uv: Math.max(0, Math.round((base.uv ?? 5) + Math.sin(hoursAgo/2) * 3))
+                    humidity: Math.min(100, Math.max(20, Math.round((getOutdoorHumidity(base) ?? 60) - tempOffset * 2))),
+                    baromrelin: Number(((getBarometerInHg(base) ?? 29.92) + Math.sin(hoursAgo/4) * 0.1).toFixed(2)),
+                    dailyrainin: getDailyRain(base),
+                    hourlyrainin: getHourlyRain(base),
+                    solarradiation: Math.max(0, Number(((getSolarRadiation(base) ?? 500) + Math.sin(hoursAgo/2) * 300).toFixed(1))),
+                    uv: Math.max(0, Math.round((getUvIndex(base) ?? 5) + Math.sin(hoursAgo/2) * 3))
                 });
             }
         }
@@ -1532,7 +1777,9 @@
         function updateUI(d) {
             const temp = formatTemp(getOutdoorTemp(d));
             const feels = formatTemp(getFeelsLike(d));
-            const inTemp = formatTemp(d.tempinf);
+            const inTemp = formatTemp(getIndoorTemp(d));
+            const outHum = getOutdoorHumidity(d);
+            const inHum = getIndoorHumidity(d);
 
             safeSetText('tempDisplay', temp.val);
             safeSetText('tempUnitLabel', '°' + temp.unit);
@@ -1540,37 +1787,37 @@
             
             safeSetText('indoorTempDisplay', inTemp.val);
             safeSetText('indoorTempUnit', '°' + inTemp.unit);
-            safeSetText('indoorHumidityDisplay', d.humidityin !== undefined ? d.humidityin : '--');
+            safeSetText('indoorHumidityDisplay', inHum !== undefined ? inHum : '--');
 
-            const wind = formatWind(d.windspeedmph);
-            const gust = formatWind(d.windgustmph);
+            const wind = formatWind(getWindSpeed(d));
+            const gust = formatWind(getWindGust(d));
             safeSetText('windSpeedDisplay', wind.val);
             safeSetText('windUnitLabel', wind.unit);
             safeSetText('windGustDisplay', gust.val);
             safeSetText('windGustUnit', gust.unit);
 
-            safeSetText('humidityDisplay', d.humidity !== undefined ? d.humidity : '--');
+            safeSetText('humidityDisplay', outHum !== undefined ? outHum : '--');
             const dew = formatTemp(d.dewPoint);
             safeSetText('dewPointDisplay', `${dew.val}°${dew.unit}`);
 
-            const solar = isValidFiniteNumber(d.solarradiation) ? Number(d.solarradiation).toFixed(1) : '--';
-            const uv = isValidFiniteNumber(d.uv) ? d.uv : '--';
-            safeSetText('solarDisplay', solar);
-            safeSetText('uvDisplay', uv);
+            const solarVal = getSolarRadiation(d);
+            const uvVal = getUvIndex(d);
+            safeSetText('solarDisplay', solarVal !== undefined ? solarVal.toFixed(1) : '--');
+            safeSetText('uvDisplay', uvVal !== undefined ? uvVal : '--');
 
-            const press = formatPressure(d.baromrelin || d.baromabsin || 29.92);
+            const press = formatPressure(getBarometerInHg(d) ?? 29.92);
             safeSetText('pressureDisplay', press.val);
             safeSetText('pressureUnitLabel', press.unit);
 
-            const rainHr = formatRain(d.hourlyrainin ?? d.rainin ?? d.eventrainin);
+            const rainHr = formatRain(getHourlyRain(d));
             const rainDayVal = getDailyRain(d);
             const rainDay = formatRain(rainDayVal);
 
+            safeSetText('rainDayDisplay', `${rainDay.val} ${rainDay.unit}`);
             safeSetText('rainHourlyDisplay', rainHr.val);
             safeSetText('rainUnitLabel', `${rainHr.unit}/h`);
-            safeSetText('rainDayDisplay', `${rainDay.val} ${rainDay.unit}`);
 
-            const windDir = d.winddir || 0;
+            const windDir = getWindDir(d);
             safeSetText('windDirText', getWindDirectionString(windDir));
             updateWindRoseGraphic(windDir);
 
@@ -1646,8 +1893,14 @@
             const windUnit = config.windUnit;
             const pressVal = document.getElementById('pressureDisplay').innerText;
             const pressUnit = document.getElementById('pressureUnitLabel').innerText;
+            const rainDayText = document.getElementById('rainDayDisplay').innerText;
 
-            const text = `Weather briefing for ${stationName}. Current temperature is ${tempVal} degrees ${tempUnit}, with humidity at ${humVal} percent. Wind is blowing from the ${windDir} at ${windSpd} ${windUnit}. Barometric pressure is ${pressVal} ${pressUnit}.`;
+            let alertSpeech = "";
+            if (activeNwsAlerts && activeNwsAlerts.length > 0) {
+                alertSpeech = ` Active National Weather Service alert: ${activeNwsAlerts[0].headline}.`;
+            }
+
+            const text = `Weather briefing for ${stationName}.${alertSpeech} Current temperature is ${tempVal} degrees ${tempUnit}, with humidity at ${humVal} percent. Wind is blowing from the ${windDir} at ${windSpd} ${windUnit}. Barometric pressure is ${pressVal} ${pressUnit}, and daily rainfall is ${rainDayText}.`;
             
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.rate = 1.0;
@@ -1668,7 +1921,6 @@
 
         function resolveActiveStationRadarCoords() {
             const st = config.stations[config.activeStationIndex] || config.stations[0];
-            // 1. Live telemetry coordinates from Ambient Weather if available
             if (rawLastStationData && rawLastStationData._coords) {
                 const liveLat = Number(rawLastStationData._coords.lat ?? rawLastStationData._coords.latitude);
                 const liveLon = Number(rawLastStationData._coords.lon ?? rawLastStationData._coords.longitude);
@@ -1682,7 +1934,6 @@
                     };
                 }
             }
-            // 2. Stored station coordinates
             if (Number.isFinite(Number(st.lat)) && Number.isFinite(Number(st.lon))) {
                 return {
                     lat: Number(st.lat),
@@ -1692,7 +1943,6 @@
                     subtitle: `${st.location || 'Active Station'} • Live Animated NEXRAD Loop`
                 };
             }
-            // 3. Default to Putnam County / Interlachen, FL
             return PUTNAM_COUNTY_RADAR_COORDS;
         }
 
@@ -1860,18 +2110,18 @@
                     color = "#a855f7";
                     break;
                 case 'rain':
-                    title = "12-Hour Rainfall Breakdown";
+                    title = "Rainfall Breakdown";
                     unit = " " + config.rainUnit;
                     color = "#6366f1";
                     safeSetText('statLabel1', "Total Today");
-                    safeSetText('statLabel2', "12h Peak Rate");
-                    safeSetText('statLabel3', "12h Avg Rate");
+                    safeSetText('statLabel2', "Peak Rate");
+                    safeSetText('statLabel3', "Avg Rate");
                     break;
             }
 
             safeSetText('modalTitle', title);
-            safeSetText('modalSubTitle', type === 'rain' ? "Past 12-Hour Hourly Rain & Logs" : "Station Historical Trends & Extrema");
-            safeSetText('readingsLogTitle', type === 'rain' ? "12-Hour Rainfall Log" : "Readings Log");
+            safeSetText('modalSubTitle', type === 'rain' ? "Station Rain Accumulation & Rate Log" : "Station Historical Trends & Extrema");
+            safeSetText('readingsLogTitle', type === 'rain' ? "Rainfall Log" : "Readings Log");
 
             const labels = [];
             const values = [];
@@ -1886,36 +2136,40 @@
 
                 if (type === 'outdoor_temp') {
                     const rawT = getOutdoorTemp(item);
-                    if (rawT === undefined) return; // Skip missing reading instead of coercing to 0 / freezing!
+                    if (rawT === undefined) return;
                     parsedVal = Number(formatTemp(rawT).val);
                 } else if (type === 'outdoor_humidity') {
-                    if (!isValidFiniteNumber(item.humidity)) return;
-                    parsedVal = Number(item.humidity);
+                    const rawH = getOutdoorHumidity(item);
+                    if (rawH === undefined) return;
+                    parsedVal = Number(rawH);
                 } else if (type === 'indoor_temp') {
-                    if (!isValidFiniteNumber(item.tempinf)) return;
-                    parsedVal = Number(formatTemp(item.tempinf).val);
+                    const rawIT = getIndoorTemp(item);
+                    if (rawIT === undefined) return;
+                    parsedVal = Number(formatTemp(rawIT).val);
                 } else if (type === 'indoor_humidity') {
-                    if (!isValidFiniteNumber(item.humidityin)) return;
-                    parsedVal = Number(item.humidityin);
+                    const rawIH = getIndoorHumidity(item);
+                    if (rawIH === undefined) return;
+                    parsedVal = Number(rawIH);
                 } else if (type === 'wind') {
-                    const rawW = item.windgustmph ?? item.windspeedmph;
-                    if (!isValidFiniteNumber(rawW)) return;
+                    const rawW = getWindGust(item) ?? getWindSpeed(item);
+                    if (rawW === undefined) return;
                     parsedVal = Number(formatWind(rawW).val);
                 } else if (type === 'solar') {
-                    if (!isValidFiniteNumber(item.solarradiation)) return;
-                    parsedVal = Number(item.solarradiation);
+                    const rawS = getSolarRadiation(item);
+                    if (rawS === undefined) return;
+                    parsedVal = Number(rawS);
                 } else if (type === 'pressure') {
-                    const rawP = item.baromrelin ?? item.baromabsin;
-                    if (!isValidFiniteNumber(rawP)) return;
+                    const rawP = getBarometerInHg(item);
+                    if (rawP === undefined) return;
                     parsedVal = Number(formatPressure(rawP).val);
                 } else if (type === 'rain') {
                     let val = 0;
-                    let directRate = item.hourlyrainin ?? item.rainin;
-                    if (isValidFiniteNumber(directRate) && Number(directRate) > 0) {
+                    const directRate = getHourlyRain(item);
+                    if (directRate > 0) {
                         val = Number(formatRain(directRate).val);
                     } else {
-                        const curAccum = Number(item.dailyrainin ?? item.eventrainin ?? item.weeklyrainin ?? 0);
-                        const prevAccum = idx > 0 ? Number(slicedHistory[idx - 1].dailyrainin ?? slicedHistory[idx - 1].eventrainin ?? slicedHistory[idx - 1].weeklyrainin ?? 0) : curAccum;
+                        const curAccum = Number(item.dailyrainin ?? item.eventrainin ?? item.totalrainin ?? 0);
+                        const prevAccum = idx > 0 ? Number(slicedHistory[idx - 1].dailyrainin ?? slicedHistory[idx - 1].eventrainin ?? slicedHistory[idx - 1].totalrainin ?? 0) : curAccum;
                         const delta = curAccum - prevAccum;
                         if (delta > 0) {
                             val = Number(formatRain(delta).val);
@@ -1932,35 +2186,11 @@
                 }
             });
 
-            if (type === 'rain') {
-                const totalTodayInches = getDailyRain(rawLastStationData);
-                const maxValInValues = values.length > 0 ? Math.max(...values) : 0;
-
-                if (totalTodayInches > 0 && maxValInValues === 0) {
-                    slicedHistory.forEach((item, idx) => {
-                        const itemRain = Number(item.dailyrainin ?? item.eventrainin ?? item.hourlyrainin ?? item.rainin ?? 0);
-                        if (itemRain > 0 && idx < values.length) {
-                            values[idx] = Number(formatRain(itemRain).val);
-                        }
-                    });
-
-                    if (values.length > 0 && Math.max(...values) === 0 && totalTodayInches > 0) {
-                        const convTotal = formatRain(totalTodayInches).val;
-                        const startIdx = Math.floor(values.length * 0.44);
-                        const activeSlots = values.length - startIdx;
-                        for (let k = startIdx; k < values.length; k++) {
-                            const progress = (k - startIdx + 1) / activeSlots;
-                            values[k] = Number((convTotal * progress).toFixed(2));
-                        }
-                    }
-                }
-            }
-
             if (values.length > 0) {
                 let highVal, lowVal;
 
                 if (type === 'rain') {
-                    let totalTodayInches = getDailyRain(rawLastStationData);
+                    const totalTodayInches = getDailyRain(rawLastStationData);
                     const convTotal = formatRain(totalTodayInches);
                     
                     const nonZeroValues = values.filter(v => v > 0);
