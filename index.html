@@ -888,6 +888,23 @@
         }
 
         /**
+         * Returns the cumulative rainfall field value (in inches) used for incremental deltas.
+         */
+        function getCumulativeRainField(item) {
+            if (!item || typeof item !== 'object') return null;
+            if (isValidFiniteNumber(item.dailyrainin) && Number(item.dailyrainin) >= 0) {
+                return Number(item.dailyrainin);
+            }
+            if (isValidFiniteNumber(item.eventrainin) && Number(item.eventrainin) >= 0) {
+                return Number(item.eventrainin);
+            }
+            if (isValidFiniteNumber(item.totalrainin) && Number(item.totalrainin) >= 0) {
+                return Number(item.totalrainin);
+            }
+            return null;
+        }
+
+        /**
          * Extracts accurate daily rain (in inches) from Ambient Weather telemetry or
          * falls back to the latest valid daily/event accumulation in recent history.
          */
@@ -1713,6 +1730,7 @@
             const now = Date.now();
             const baseOutdoor = getOutdoorTemp(base) ?? 78.2;
             const baseDir = getWindDir(base);
+            const totalDaily = getDailyRain(base);
 
             for (let i = 72; i >= 0; i--) {
                 const time = new Date(now - i * 10 * 60 * 1000).toISOString();
@@ -1720,6 +1738,8 @@
                 const tempOffset = Math.sin(hoursAgo / 3) * 6;
                 const calcTemp = Number((baseOutdoor + tempOffset).toFixed(1));
                 const calcDir = (Math.round(baseDir + Math.sin(hoursAgo) * 35) + 360) % 360;
+                const progress = (72 - i) / 72;
+                const syntheticDaily = Number((totalDaily * progress).toFixed(2));
 
                 recentHistoryData.push({
                     date: time,
@@ -1733,7 +1753,7 @@
                     winddir: calcDir,
                     humidity: Math.min(100, Math.max(20, Math.round((getOutdoorHumidity(base) ?? 60) - tempOffset * 2))),
                     baromrelin: Number(((getBarometerInHg(base) ?? 29.92) + Math.sin(hoursAgo/4) * 0.1).toFixed(2)),
-                    dailyrainin: getDailyRain(base),
+                    dailyrainin: syntheticDaily,
                     hourlyrainin: getHourlyRain(base),
                     solarradiation: Math.max(0, Number(((getSolarRadiation(base) ?? 500) + Math.sin(hoursAgo/2) * 300).toFixed(1))),
                     uv: Math.max(0, Math.round((getUvIndex(base) ?? 5) + Math.sin(hoursAgo/2) * 3))
@@ -2110,25 +2130,26 @@
                     color = "#a855f7";
                     break;
                 case 'rain':
-                    title = "Rainfall Breakdown";
+                    title = "Incremental Rainfall";
                     unit = " " + config.rainUnit;
                     color = "#6366f1";
                     safeSetText('statLabel1', "Total Today");
-                    safeSetText('statLabel2', "Peak Rate");
-                    safeSetText('statLabel3', "Avg Rate");
+                    safeSetText('statLabel2', "Max Increment");
+                    safeSetText('statLabel3', "Current Rate");
                     break;
             }
 
             safeSetText('modalTitle', title);
-            safeSetText('modalSubTitle', type === 'rain' ? "Station Rain Accumulation & Rate Log" : "Station Historical Trends & Extrema");
-            safeSetText('readingsLogTitle', type === 'rain' ? "Rainfall Log" : "Readings Log");
+            safeSetText('modalSubTitle', type === 'rain' ? "Incremental Rain per Interval up to Current Time" : "Station Historical Trends & Extrema");
+            safeSetText('readingsLogTitle', type === 'rain' ? "Incremental Rainfall Log" : "Readings Log");
 
             const labels = [];
             const values = [];
 
             const slicedHistory = recentHistoryData.slice(-72);
+            let prevRainAccum = null;
 
-            slicedHistory.forEach((item, idx) => {
+            slicedHistory.forEach((item) => {
                 const rawDate = item.dateutc ?? item.date;
                 const time = rawDate ? new Date(rawDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : `--:--`;
 
@@ -2163,21 +2184,21 @@
                     if (rawP === undefined) return;
                     parsedVal = Number(formatPressure(rawP).val);
                 } else if (type === 'rain') {
-                    let val = 0;
-                    const directRate = getHourlyRain(item);
-                    if (directRate > 0) {
-                        val = Number(formatRain(directRate).val);
-                    } else {
-                        const curAccum = Number(item.dailyrainin ?? item.eventrainin ?? item.totalrainin ?? 0);
-                        const prevAccum = idx > 0 ? Number(slicedHistory[idx - 1].dailyrainin ?? slicedHistory[idx - 1].eventrainin ?? slicedHistory[idx - 1].totalrainin ?? 0) : curAccum;
-                        const delta = curAccum - prevAccum;
-                        if (delta > 0) {
-                            val = Number(formatRain(delta).val);
-                        } else if (curAccum > 0) {
-                            val = Number(formatRain(curAccum).val);
+                    const curAccum = getCumulativeRainField(item);
+                    let deltaInches = 0;
+
+                    if (curAccum !== null) {
+                        if (prevRainAccum !== null) {
+                            if (curAccum >= prevRainAccum) {
+                                deltaInches = curAccum - prevRainAccum;
+                            } else {
+                                // Midnight daily counter reset occurred between readings
+                                deltaInches = curAccum;
+                            }
                         }
+                        prevRainAccum = curAccum;
                     }
-                    parsedVal = val;
+                    parsedVal = Number(formatRain(Math.max(0, deltaInches)).val);
                 }
 
                 if (parsedVal !== null && Number.isFinite(parsedVal)) {
@@ -2192,16 +2213,12 @@
                 if (type === 'rain') {
                     const totalTodayInches = getDailyRain(rawLastStationData);
                     const convTotal = formatRain(totalTodayInches);
-                    
-                    const nonZeroValues = values.filter(v => v > 0);
-                    const peakRate = Math.max(...values).toFixed(2);
-                    const avgRate = nonZeroValues.length > 0 
-                        ? (nonZeroValues.reduce((a, b) => a + b, 0) / nonZeroValues.length).toFixed(2) 
-                        : (values.reduce((a, b) => a + b, 0) / values.length).toFixed(2);
+                    const maxIncVal = Math.max(...values).toFixed(config.rainUnit === 'mm' ? 1 : 2);
+                    const curRateConv = formatRain(getHourlyRain(rawLastStationData));
 
-                    safeSetText('statHigh', convTotal.val + " " + convTotal.unit);
-                    safeSetText('statLow', peakRate + unit);
-                    safeSetText('statAvg', avgRate + unit);
+                    safeSetText('statHigh', `${convTotal.val} ${convTotal.unit}`);
+                    safeSetText('statLow', `${maxIncVal}${unit}`);
+                    safeSetText('statAvg', `${curRateConv.val} ${curRateConv.unit}/h`);
                 } else {
                     const avgValGen = (values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
                     if (rawLastStationData) {
@@ -2243,7 +2260,13 @@
                 for (let i = values.length - 1; i >= 0; i--) {
                     const row = document.createElement('div');
                     row.className = "flex justify-between items-center bg-slate-800/40 px-2 py-1 rounded border border-slate-700/50";
-                    row.innerHTML = `<span class="text-slate-400 font-mono">${labels[i]}</span> <span class="font-bold text-white">${values[i]}${unit}</span>`;
+                    const formattedVal = type === 'rain'
+                        ? values[i].toFixed(config.rainUnit === 'mm' ? 1 : 2)
+                        : values[i];
+                    row.innerHTML = `<span class="text-slate-400 font-mono">${labels[i]}</span> <span class="font-bold text-white">+${formattedVal}${unit}</span>`;
+                    if (type !== 'rain') {
+                        row.innerHTML = `<span class="text-slate-400 font-mono">${labels[i]}</span> <span class="font-bold text-white">${formattedVal}${unit}</span>`;
+                    }
                     listEl.appendChild(row);
                 }
             }
@@ -2257,24 +2280,28 @@
             const ctx = canvas.getContext('2d');
             if (activeChart) activeChart.destroy();
 
-            const beginZero = (type === 'rain' || type === 'solar' || type === 'outdoor_humidity' || type === 'indoor_humidity' || type === 'wind');
+            const isRainBar = (type === 'rain');
+            const beginZero = (isRainBar || type === 'solar' || type === 'outdoor_humidity' || type === 'indoor_humidity' || type === 'wind');
             const isLight = document.body.classList.contains('light-mode');
             const tickColor = isLight ? '#475569' : '#94a3b8';
             const gridColor = isLight ? '#cbd5e1' : '#334155';
 
             activeChart = new Chart(ctx, {
-                type: 'line',
+                type: isRainBar ? 'bar' : 'line',
                 data: {
                     labels: labels,
                     datasets: [{
                         label: label,
                         data: values,
                         borderColor: color,
-                        backgroundColor: color + '22',
-                        fill: true,
+                        backgroundColor: isRainBar ? color + 'cc' : color + '22',
+                        borderRadius: isRainBar ? 3 : 0,
+                        barPercentage: 0.85,
+                        categoryPercentage: 0.9,
+                        fill: !isRainBar,
                         tension: 0.35,
-                        borderWidth: 2,
-                        pointRadius: 1.5
+                        borderWidth: isRainBar ? 1 : 2,
+                        pointRadius: isRainBar ? 0 : 1.5
                     }]
                 },
                 options: {
