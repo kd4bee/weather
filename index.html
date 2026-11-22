@@ -138,8 +138,13 @@
                     <button onclick="openSettingsModal()" class="w-7 h-7 rounded-lg bg-slate-800/80 flex items-center justify-center text-slate-400 hover:text-sky-300 border border-slate-700 transition cursor-pointer" title="Settings">
                         <i class="fa-solid fa-gear text-xs"></i>
                     </button>
-                    <!-- UTC Time Display -->
-                    <span class="text-xs font-mono font-semibold text-sky-300 bg-slate-800/80 px-2.5 py-1 rounded border border-sky-500/20" id="utcTimeDisplay">--:--:-- UTC</span>
+                    <!-- Date & Synced Status Display (Swapped with UTC Time) -->
+                    <div class="text-right">
+                        <div class="text-xs font-semibold text-slate-200" id="localDateDisplay">Loading date...</div>
+                        <div class="text-[9px] text-slate-400 flex items-center justify-end gap-1">
+                            <i class="fa-solid fa-clock-rotate-left"></i> <span id="lastUpdatedDisplay">Syncing...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -151,9 +156,9 @@
                     </div>
                 </div>
                 <div class="text-right">
-                    <div class="text-xs font-semibold text-slate-200" id="localDateDisplay">Loading date...</div>
-                    <div class="text-[9px] text-slate-400 flex items-center justify-end gap-1">
-                        <i class="fa-solid fa-clock-rotate-left"></i> <span id="lastUpdatedDisplay">Syncing...</span>
+                    <div class="text-2xl font-black text-white tracking-tight leading-none flex items-baseline justify-end gap-1">
+                        <span id="utcTimeDisplay">--:--:--</span>
+                        <span class="text-xs font-bold text-sky-400">UTC</span>
                     </div>
                 </div>
             </div>
@@ -595,8 +600,8 @@
                     <input type="text" id="settingAppKey" class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-[10px] font-mono text-white focus:outline-none focus:border-sky-400 mt-1" placeholder="Ambient Weather Application Key">
                 </div>
                 <div class="flex justify-between items-center pt-1">
-                    <button type="button" onclick="testDisplayElements()" class="text-[10px] text-emerald-400 hover:text-emerald-300 transition cursor-pointer flex items-center gap-1">
-                        <i class="fa-solid fa-play"></i> Test Station Display
+                    <button type="button" onclick="testSevereWeatherAlert()" class="text-[10px] text-red-400 hover:text-red-300 transition cursor-pointer flex items-center gap-1 font-semibold">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Test Severe Weather Alert
                     </button>
                     <button type="button" onclick="deleteCurrentStation()" class="text-[10px] text-red-400 hover:text-red-300 transition cursor-pointer">
                         <i class="fa-solid fa-trash"></i> Delete
@@ -714,6 +719,7 @@
         let recentHistoryData = [];
         let forecastDaysData = [];
         let activeNwsAlerts = [];
+        let isTestAlertActive = false;
         let refreshTimer = null;
         let rawLastStationData = null;
         let toastTimeout = null;
@@ -887,9 +893,6 @@
             return 0;
         }
 
-        /**
-         * Returns the cumulative rainfall field value (in inches) used for incremental deltas.
-         */
         function getCumulativeRainField(item) {
             if (!item || typeof item !== 'object') return null;
             if (isValidFiniteNumber(item.dailyrainin) && Number(item.dailyrainin) >= 0) {
@@ -904,10 +907,6 @@
             return null;
         }
 
-        /**
-         * Extracts accurate daily rain (in inches) from Ambient Weather telemetry or
-         * falls back to the latest valid daily/event accumulation in recent history.
-         */
         function getDailyRain(d) {
             const sources = [d];
             if (Array.isArray(recentHistoryData) && recentHistoryData.length > 0) {
@@ -1075,7 +1074,7 @@
             safeSetText('localDateDisplay', dateStr);
 
             const utcStr = now.toLocaleTimeString('en-US', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-            safeSetText('utcTimeDisplay', utcStr + ' UTC');
+            safeSetText('utcTimeDisplay', utcStr);
 
             if (config.themeMode === 'auto' && now.getSeconds() === 0) {
                 applyTheme();
@@ -1083,6 +1082,7 @@
         }
 
         async function refreshData() {
+            isTestAlertActive = false;
             const icon = document.getElementById('refreshIcon');
             if (icon) icon.classList.add('animate-spin-fast');
 
@@ -1259,14 +1259,90 @@
             }
         }
 
-        async function checkNwsAlerts() {
-            const { lat, lon } = resolveStationCoordinates();
+        function renderAlertsToPane() {
             const alertPane = document.getElementById('nwsAlertPane');
             const alertTitle = document.getElementById('nwsAlertTitle');
             const alertCountBadge = document.getElementById('nwsAlertCountBadge');
             const alertBannerLabel = document.getElementById('nwsAlertBannerLabel');
 
             if (!alertPane || !alertTitle) return;
+
+            if (!activeNwsAlerts || activeNwsAlerts.length === 0) {
+                alertPane.classList.add('hidden');
+                return;
+            }
+
+            const primary = activeNwsAlerts[0];
+            const combinedMarquee = activeNwsAlerts.length > 1
+                ? activeNwsAlerts.map(a => `${a.event}: ${a.headline}`).join('   •••   ')
+                : primary.headline;
+
+            alertTitle.innerText = combinedMarquee;
+
+            if (alertBannerLabel) {
+                if (isTestAlertActive) {
+                    alertBannerLabel.innerText = `TEST NWS ${primary.event.toUpperCase()} • Tap for Preview Details`;
+                } else if (activeNwsAlerts.length > 1) {
+                    alertBannerLabel.innerText = `${activeNwsAlerts.length} Active NWS Alerts • Tap for Full Details`;
+                } else {
+                    alertBannerLabel.innerText = `Active NWS ${primary.event} • Tap for Details`;
+                }
+            }
+
+            if (alertCountBadge) {
+                if (activeNwsAlerts.length > 1) {
+                    alertCountBadge.innerText = `${activeNwsAlerts.length} ALERTS`;
+                    alertCountBadge.classList.remove('hidden');
+                } else {
+                    alertCountBadge.classList.add('hidden');
+                }
+            }
+
+            alertPane.classList.remove('hidden');
+        }
+
+        function testSevereWeatherAlert() {
+            const currentStation = config.stations[config.activeStationIndex] || config.stations[0];
+            const { lat, lon } = resolveStationCoordinates();
+            const now = new Date();
+            const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+            const locName = currentStation.location || "Interlachen, FL";
+
+            isTestAlertActive = true;
+            activeNwsAlerts = [
+                {
+                    id: "test-severe-alert-001",
+                    event: "Severe Thunderstorm Warning",
+                    severity: "Severe",
+                    certainty: "Observed",
+                    urgency: "Immediate",
+                    senderName: "NWS Jacksonville FL (Test Preview)",
+                    headline: `Severe Thunderstorm Warning issued for ${locName} until ${later.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} — 60 mph gusts & quarter size hail`,
+                    description: `THIS IS A TEST ALERT PREVIEW.\n\nA severe thunderstorm capable of producing quarter size hail and damaging winds in excess of 60 mph is located near ${locName}, moving northeast at 25 mph.\n\nHAZARD: 60 mph wind gusts and quarter size hail.\nSOURCE: Radar indicated.\nIMPACT: Damage to roofs, siding, and trees is expected.`,
+                    instruction: "Move to an interior room on the lowest floor of a sturdy building. Avoid windows, stay away from trees, and monitor local weather updates.",
+                    areaDesc: `${locName}; Surrounding Forecast Area`,
+                    effective: now.toISOString(),
+                    expires: later.toISOString(),
+                    lat: Number.isFinite(lat) ? lat : 29.6236,
+                    lon: Number.isFinite(lon) ? lon : -81.8898
+                }
+            ];
+
+            renderAlertsToPane();
+            closeSettingsModal();
+            showToast("Displaying severe weather alert preview on main screen.");
+        }
+
+        async function checkNwsAlerts() {
+            if (isTestAlertActive) {
+                renderAlertsToPane();
+                return;
+            }
+
+            const { lat, lon } = resolveStationCoordinates();
+            const alertPane = document.getElementById('nwsAlertPane');
+
+            if (!alertPane) return;
 
             if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
                 activeNwsAlerts = [];
@@ -1303,29 +1379,7 @@
                             };
                         });
 
-                        const primary = activeNwsAlerts[0];
-                        const combinedMarquee = activeNwsAlerts.length > 1
-                            ? activeNwsAlerts.map(a => `${a.event}: ${a.headline}`).join('   •••   ')
-                            : primary.headline;
-
-                        alertTitle.innerText = combinedMarquee;
-
-                        if (alertBannerLabel) {
-                            alertBannerLabel.innerText = activeNwsAlerts.length > 1
-                                ? `${activeNwsAlerts.length} Active NWS Alerts • Tap for Full Details`
-                                : `Active NWS ${primary.event} • Tap for Details`;
-                        }
-
-                        if (alertCountBadge) {
-                            if (activeNwsAlerts.length > 1) {
-                                alertCountBadge.innerText = `${activeNwsAlerts.length} ALERTS`;
-                                alertCountBadge.classList.remove('hidden');
-                            } else {
-                                alertCountBadge.classList.add('hidden');
-                            }
-                        }
-
-                        alertPane.classList.remove('hidden');
+                        renderAlertsToPane();
                         return;
                     }
                 }
@@ -2056,24 +2110,6 @@
             }
         }
 
-        function testDisplayElements() {
-            const tempEl = document.getElementById('tempDisplay');
-            const humEl = document.getElementById('humidityDisplay');
-            const windEl = document.getElementById('windSpeedDisplay');
-            const pressEl = document.getElementById('pressureDisplay');
-            
-            if (tempEl) tempEl.innerText = '88.8';
-            if (humEl) humEl.innerText = '99';
-            if (windEl) windEl.innerText = '25.0';
-            if (pressEl) pressEl.innerText = '1013.2';
-            updateWindRoseGraphic(225);
-
-            setTimeout(() => {
-                refreshData();
-                showToast("Display test sequence completed for active station.");
-            }, 1500);
-        }
-
         function openHistoryModal(type) {
             const modal = document.getElementById('historyModal');
             if (modal) modal.classList.remove('hidden');
@@ -2192,7 +2228,6 @@
                             if (curAccum >= prevRainAccum) {
                                 deltaInches = curAccum - prevRainAccum;
                             } else {
-                                // Midnight daily counter reset occurred between readings
                                 deltaInches = curAccum;
                             }
                         }
